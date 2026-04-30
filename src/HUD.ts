@@ -900,8 +900,19 @@ export class HUD {
     // Show updated info whenever panel opens
     gear.addEventListener('click', refreshCloudUI);
 
+    const sanitizeName = (input: HTMLInputElement) => {
+      const clean = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (input.value !== clean) {
+        const pos = input.selectionStart ?? clean.length;
+        input.value = clean;
+        input.setSelectionRange(pos, pos);
+      }
+      return clean;
+    };
+    nameInput.addEventListener('input', () => sanitizeName(nameInput));
+
     nameSaveBtn.addEventListener('click', () => {
-      const n = nameInput.value.trim();
+      const n = sanitizeName(nameInput);
       if (!n) return;
       setLocalPlayerName(n);
       cloudStatus.textContent = 'NAME SAVED';

@@ -22,12 +22,18 @@ async function runSplash(): Promise<void> {
   startBtn.disabled = !nameInput.value.trim();
 
   nameInput.addEventListener('input', () => {
-    startBtn.disabled = !nameInput.value.trim();
+    const clean = nameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (nameInput.value !== clean) {
+      const pos = nameInput.selectionStart ?? clean.length;
+      nameInput.value = clean;
+      nameInput.setSelectionRange(pos, pos);
+    }
+    startBtn.disabled = !clean;
   });
 
   return new Promise(resolve => {
     const go = async () => {
-      const name = nameInput.value.trim();
+      const name = nameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
       const code = recoveryInput.value.trim();
       if (!name) return;
 
