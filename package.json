@@ -1,0 +1,34 @@
+{
+  "name": "neon-flux",
+  "version": "1.0.0",
+  "description": "Neon Flux - hold to charge, release to explode, chain enemy kills to survive",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "leaderboard:dev": "wrangler dev cloudflare/leaderboard-worker.js",
+    "leaderboard:deploy": "wrangler deploy",
+    "leaderboard:migrate:local": "wrangler d1 migrations apply neon-flux-leaderboard --local",
+    "leaderboard:migrate": "wrangler d1 migrations apply neon-flux-leaderboard"
+  },
+  "keywords": [
+    "three",
+    "vite",
+    "typescript",
+    "game",
+    "space"
+  ],
+  "author": "",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/three": "^0.183.1",
+    "typescript": "^5.9.2",
+    "vite": "^6.3.5",
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "three": "^0.176.0"
+  }
+}

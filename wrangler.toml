@@ -1,0 +1,14 @@
+name = "neon-flux-leaderboard"
+main = "cloudflare/leaderboard-worker.js"
+compatibility_date = "2026-04-28"
+# account_id = ""   # set via CLOUDFLARE_ACCOUNT_ID env var or wrangler login
+
+routes = [
+  { pattern = "neon-flux.org/api/*", zone_name = "neon-flux.org" }
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "neon-flux-leaderboard"
+database_id = ""   # fill in after: wrangler d1 create neon-flux-leaderboard
+migrations_dir = "cloudflare/migrations"
