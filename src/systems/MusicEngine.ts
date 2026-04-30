@@ -52,6 +52,11 @@ const _DRUM_FREQS: Record<number, number> = {
 };
 function _drumFreq(p: number): number { return _DRUM_FREQS[p] ?? 400; }
 
+// Raise G (pitch class 7 relative to C) to G# — natural minor → harmonic minor
+function _harmonicMinor(pitch: number): number {
+  return (pitch % 12 === 7) ? pitch + 1 : pitch;
+}
+
 function extractNotes(buf: ArrayBuffer): ParsedNote[] {
   const d = new Uint8Array(buf);
   let p = 0;
@@ -116,7 +121,7 @@ function extractNotes(buf: ArrayBuffer): ParsedNote[] {
               if (s.isDrum) {
                 notes.push({ time: s.time, dur: 0.05, pitch, velocity: s.vel, isDrum: true });
               } else {
-                const shifted = pitch + OCTAVE_SHIFT;
+                const shifted = _harmonicMinor(pitch + OCTAVE_SHIFT);
                 if (shifted >= PITCH_MIN && shifted <= PITCH_MAX) {
                   notes.push({ time: s.time, dur: Math.max(0.05, sec - s.time), pitch: shifted, velocity: s.vel });
                 }
@@ -132,7 +137,7 @@ function extractNotes(buf: ArrayBuffer): ParsedNote[] {
             if (s.isDrum) {
               notes.push({ time: s.time, dur: 0.05, pitch, velocity: s.vel, isDrum: true });
             } else {
-              const shifted = pitch + OCTAVE_SHIFT;
+              const shifted = _harmonicMinor(pitch + OCTAVE_SHIFT);
               if (shifted >= PITCH_MIN && shifted <= PITCH_MAX) {
                 notes.push({ time: s.time, dur: Math.max(0.05, sec - s.time), pitch: shifted, velocity: s.vel });
               }
@@ -404,10 +409,11 @@ export class MusicEngine {
     if (!this.ctx || !this._sfxBus) return;
     const now = this.ctx.currentTime;
 
-    // Pitch tracks charge: full charge resolves from A4 (440Hz) down to E3 (165Hz);
-    // low charge resolves from A3 (220Hz) down to E3 — always lands on the fifth.
+    // Pitch tracks charge: full charge resolves from A4 (440Hz) down to G#3 (207.7Hz);
+    // low charge resolves from A3 (220Hz) down to G#3 — lands on the leading tone of
+    // A harmonic minor, creating the characteristic tension-resolution feel.
     const startFreq = 220 + chargeProgress * 220; // 220–440 Hz
-    const endFreq   = 164.8;                       // E3 — the fifth below
+    const endFreq   = 207.7;                       // G#3 — harmonic minor leading tone
 
     const osc = this.ctx.createOscillator();
     const env = this.ctx.createGain();
@@ -539,7 +545,8 @@ export class MusicEngine {
   playLastBombWarning(): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
-    [880.0, 554.4].forEach((freq, i) => {
+    // A5 (880Hz) → G#5 (830.6Hz) — descending half-step, harmonic minor leading tone
+    [880.0, 830.6].forEach((freq, i) => {
       const when = now + i * 0.06;
       const osc  = this.ctx!.createOscillator();
       const env  = this.ctx!.createGain();
@@ -630,8 +637,8 @@ export class MusicEngine {
   playPickupQuicken(): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
-    // A minor pentatonic: A3 C4 E4 G4 A4
-    [220.0, 261.6, 329.6, 392.0, 440.0].forEach((freq, i) => {
+    // A harmonic minor: A3 C4 E4 G#4 A4
+    [220.0, 261.6, 329.6, 415.3, 440.0].forEach((freq, i) => {
       const when = now + i * 0.08;
       const osc  = this.ctx!.createOscillator();
       const env  = this.ctx!.createGain();

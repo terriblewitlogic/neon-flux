@@ -1108,6 +1108,12 @@ export class Game {
       if (dx * dx + dy * dy < 38 * 38) this._advanceTutStep();
     }
 
+    // Step 5: if the time pickup expired before collection, respawn it
+    if (this._tutStep === 5 && this.pickups.count === 0) {
+      this.pickups.drop('time', 0, 30);
+      this._tutCluster = { x: 0, y: 30 };
+    }
+
     // Steps 6 & 7: advance on any keypress after 0.5 s grace period
     if ((this._tutStep === 6 || this._tutStep === 7) && this._tutInfoTimer > 0 && this._tutInfoTimer < 3.5) {
       if (inp.detonate || Math.abs(inp.moveX) > 0.3 || Math.abs(inp.moveY) > 0.3) {

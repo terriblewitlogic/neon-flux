@@ -161,6 +161,8 @@ export class EEEPickupSystem {
     }
   }
 
+  get count(): number { return this._pickups.length; }
+
   clearAll(): void {
     for (let i = this._pickups.length - 1; i >= 0; i--) this._remove(i);
   }
