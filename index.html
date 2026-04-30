@@ -7,8 +7,86 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Neon Flux</title>
     <script src="https://emrgco.com/api/snippet.js" data-key="ek_e64433b925104877a2b4dfe1dc5e77e5"></script>
+    <style>
+      /* ── Splash screen ─────────────────────────────────────────────────────── */
+      #startScreen {
+        position: fixed; inset: 0; z-index: 2000;
+        background: radial-gradient(circle at 50% 38%, #0a001a 0%, #03000d 55%, #000004 100%);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 22px; padding: 32px 24px;
+        transition: opacity 0.45s ease, visibility 0.45s ease;
+        font-family: 'Courier New', Courier, monospace;
+      }
+      #startScreen.done { opacity: 0; visibility: hidden; pointer-events: none; }
+      .ss-thumb {
+        width: min(72vw, 320px); height: auto; display: block;
+        border-radius: 8px;
+        box-shadow: 0 0 40px rgba(0,255,204,0.18), 0 0 80px rgba(0,255,204,0.07);
+        animation: ssThumbPulse 3s ease-in-out infinite;
+      }
+      @keyframes ssThumbPulse {
+        0%, 100% { transform: scale(1) translateY(0); filter: brightness(1); }
+        50%       { transform: scale(1.02) translateY(-4px); filter: brightness(1.08); }
+      }
+      #startForm {
+        display: flex; flex-direction: column; gap: 12px;
+        width: min(320px, 88vw);
+      }
+      .ss-field { display: flex; flex-direction: column; gap: 5px; }
+      .ss-field label {
+        font-size: 10px; color: #00ffcc88; letter-spacing: 0.18em; text-transform: uppercase;
+      }
+      .ss-field input {
+        background: rgba(0,255,204,0.04); border: 1px solid rgba(0,255,204,0.22);
+        color: #fff; border-radius: 6px; padding: 11px 13px;
+        font-size: 15px; font-family: 'Courier New', Courier, monospace;
+        outline: none; transition: border-color 0.2s;
+      }
+      .ss-field input:focus { border-color: rgba(0,255,204,0.65); }
+      .ss-field input::placeholder { color: #00ffcc33; }
+      #startBtn {
+        margin-top: 6px; padding: 14px;
+        font-size: 14px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
+        background: transparent;
+        color: #00ffcc; border: 2px solid #00ffcc;
+        border-radius: 6px; cursor: pointer;
+        font-family: 'Courier New', Courier, monospace;
+        box-shadow: 0 0 20px rgba(0,255,204,0.22), inset 0 0 20px rgba(0,255,204,0.04);
+        transition: opacity 0.2s, box-shadow 0.2s;
+        text-shadow: 0 0 12px #00ffcc;
+      }
+      #startBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+      #startBtn:not(:disabled):hover {
+        box-shadow: 0 0 32px rgba(0,255,204,0.45), inset 0 0 20px rgba(0,255,204,0.08);
+      }
+      #startHint {
+        min-height: 16px; font-size: 11px; color: #00ffcc66;
+        text-align: center; letter-spacing: 0.06em; text-transform: uppercase;
+      }
+      #startHint.err { color: #ff4466; }
+    </style>
   </head>
   <body>
+
+    <!-- Splash screen — visible before JS loads -->
+    <div id="startScreen">
+      <img class="ss-thumb" src="./thumbnail.jpg" alt="Neon Flux">
+      <div id="startForm">
+        <div class="ss-field">
+          <label>Your Name</label>
+          <input id="startNameInput" type="text" maxlength="18" autocomplete="off"
+            spellcheck="false" placeholder="Enter your name">
+        </div>
+        <div class="ss-field">
+          <label>Recovery Code <span style="color:#00ffcc44;text-transform:none;letter-spacing:0">(optional — restores your score)</span></label>
+          <input id="startRecoveryInput" type="text" maxlength="28" autocomplete="off"
+            spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-XXXXX">
+        </div>
+        <button id="startBtn" disabled>ENGAGE</button>
+        <div id="startHint"></div>
+      </div>
+    </div>
+
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

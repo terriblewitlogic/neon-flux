@@ -15,6 +15,13 @@ import {
   recoverSave,
 } from './platform';
 
+// Declare emrg global (injected by analytics snippet)
+declare global {
+  interface Window {
+    emrg?: { track: (event: string, props?: Record<string, unknown>) => void };
+  }
+}
+
 export interface LeaderboardRecord {
   rank:     number;
   username: string;
@@ -357,9 +364,6 @@ export class HUD {
     this.elExtend.style.visibility = 'hidden';
     this.elOverlay.classList.add('title-mode');
 
-    const existingName   = getLocalPlayerName();
-    const recoveryCode   = getRecoveryCode();
-
     this.elOverlay.innerHTML = `
       <div class="neon-flux-logo-wrap" id="neon-flux-logo-mount">
         <div id="neon-word-mount"></div>
@@ -391,20 +395,9 @@ export class HUD {
       </div>
       <div style="flex:1"></div>
       <div class="subtitle">CHAIN · REACT · SURVIVE</div>
-      <div class="player-setup">
-        <input id="player-name-input" type="text" maxlength="18" autocomplete="off"
-          spellcheck="false" placeholder="YOUR NAME"
-          value="${existingName.replace(/"/g, '&quot;')}">
-        <div class="player-code-row">
-          <span class="pc-label">SAVE CODE</span>
-          <span id="player-rc" title="Write this down to recover your score on another device">${recoveryCode}</span>
-          <button id="btn-copy-rc" title="Copy to clipboard">⎘</button>
-        </div>
-      </div>
       <button id="btn-start">ENGAGE</button>
       <button id="btn-how" style="border-color:#00ffcc55;color:#00ffcc88;text-shadow:none;box-shadow:none;font-size:clamp(9px,2.2vw,12px);">HOW TO PLAY</button>
       <button id="btn-lb" style="border-color:#4488ff;color:#4488ff;text-shadow:0 0 8px #4488ff;box-shadow:0 0 12px rgba(68,136,255,0.3);">LEADERBOARD</button>
-      <button id="btn-recover" style="border-color:#ff880044;color:#ff880088;text-shadow:none;box-shadow:none;font-size:clamp(9px,2.2vw,12px);">RECOVER SAVE</button>
     `;
     this.elOverlay.classList.remove('hidden');
 
@@ -439,27 +432,7 @@ export class HUD {
 
     window.dispatchEvent(new CustomEvent('game:show-title'));
 
-    // Save name on every keystroke so it persists immediately
-    const nameInput = this.elOverlay.querySelector('#player-name-input') as HTMLInputElement | null;
-    if (nameInput) {
-      nameInput.addEventListener('input', () => setLocalPlayerName(nameInput.value));
-      nameInput.addEventListener('blur',  () => setLocalPlayerName(nameInput.value));
-    }
-
-    // Copy recovery code to clipboard
-    const copyBtn = this.elOverlay.querySelector('#btn-copy-rc') as HTMLButtonElement | null;
-    if (copyBtn) {
-      const doCopy = () => {
-        const code = (this.elOverlay.querySelector('#player-rc') as HTMLElement)?.textContent || '';
-        navigator.clipboard?.writeText(code).catch(() => {});
-        copyBtn.textContent = '✓';
-        setTimeout(() => { copyBtn.textContent = '⎘'; }, 1200);
-      };
-      copyBtn.addEventListener('click', doCopy);
-      copyBtn.addEventListener('touchend', (e) => { e.preventDefault(); doCopy(); }, { passive: false });
-    }
-
-    this._wireBtnWithNameSave('#btn-start');
+    this._wireBtn('#btn-start');
     const howBtn = this.elOverlay.querySelector('#btn-how')!;
     const openHow = () => window.dispatchEvent(new CustomEvent('game:tutorial-start'));
     howBtn.addEventListener('click', openHow);
@@ -468,10 +441,6 @@ export class HUD {
     const openLb = () => window.dispatchEvent(new CustomEvent('game:leaderboard'));
     lbBtn.addEventListener('click', openLb);
     lbBtn.addEventListener('touchend', (e) => { e.preventDefault(); openLb(); }, { passive: false });
-    const recoverBtn = this.elOverlay.querySelector('#btn-recover')!;
-    const openRecover = () => this._showRecoverModal();
-    recoverBtn.addEventListener('click', openRecover);
-    recoverBtn.addEventListener('touchend', (e) => { e.preventDefault(); openRecover(); }, { passive: false });
 
     // Secret cheat menu: tap the ship 5 times within 3 seconds
     const shipWrap = this.elOverlay.querySelector('.title-ship-wrap') as HTMLElement | null;
@@ -872,6 +841,11 @@ export class HUD {
           <span class="set-toggle-track"></span>
         </label>
       </div>
+      <div class="set-divider"></div>
+      <div class="set-cloud-row"><span class="set-cloud-label">NAME</span><input id="set-name" maxlength="18" autocomplete="off" spellcheck="false"><button id="set-name-save">SAVE</button></div>
+      <div class="set-cloud-row"><span class="set-cloud-label">CODE</span><span class="set-recovery-code" id="set-rc">…</span><button id="set-copy-rc">COPY</button></div>
+      <div class="set-cloud-row"><span class="set-cloud-label">RECOVER</span><input id="set-recover-input" autocomplete="off" spellcheck="false" placeholder="PASTE CODE"><button id="set-load-rc">LOAD</button></div>
+      <div class="set-cloud-status" id="set-cloud-status"></div>
     `;
     app.appendChild(panel);
 
@@ -909,6 +883,67 @@ export class HUD {
       this._onInvertY(invertCheck.checked);
     });
 
+    // Cloud identity section
+    const nameInput    = panel.querySelector('#set-name')          as HTMLInputElement;
+    const nameSaveBtn  = panel.querySelector('#set-name-save')     as HTMLButtonElement;
+    const rcText       = panel.querySelector('#set-rc')            as HTMLElement;
+    const copyRcBtn    = panel.querySelector('#set-copy-rc')       as HTMLButtonElement;
+    const recoverInput = panel.querySelector('#set-recover-input') as HTMLInputElement;
+    const loadRcBtn    = panel.querySelector('#set-load-rc')       as HTMLButtonElement;
+    const cloudStatus  = panel.querySelector('#set-cloud-status')  as HTMLElement;
+
+    const refreshCloudUI = () => {
+      nameInput.value  = getLocalPlayerName();
+      rcText.textContent = getRecoveryCode();
+    };
+    refreshCloudUI();
+
+    // Show updated info whenever panel opens
+    gear.addEventListener('click', refreshCloudUI);
+
+    nameSaveBtn.addEventListener('click', () => {
+      const n = nameInput.value.trim();
+      if (!n) return;
+      setLocalPlayerName(n);
+      cloudStatus.textContent = 'NAME SAVED';
+      setTimeout(() => { cloudStatus.textContent = ''; }, 1800);
+    });
+
+    const doCopy = () => {
+      const code = rcText.textContent || '';
+      navigator.clipboard?.writeText(code).catch(() => {});
+      copyRcBtn.textContent = '✓';
+      cloudStatus.textContent = 'CODE COPIED';
+      setTimeout(() => { copyRcBtn.textContent = 'COPY'; cloudStatus.textContent = ''; }, 1800);
+    };
+    copyRcBtn.addEventListener('click', doCopy);
+    copyRcBtn.addEventListener('touchend', (e) => { e.preventDefault(); doCopy(); }, { passive: false });
+
+    const doLoad = async () => {
+      const code = recoverInput.value.trim();
+      if (code.replace(/[^A-Za-z0-9]/g, '').length < 15) {
+        cloudStatus.textContent = 'CODE TOO SHORT';
+        return;
+      }
+      loadRcBtn.disabled = true;
+      cloudStatus.textContent = 'RECOVERING…';
+      const result = await recoverSave(code);
+      loadRcBtn.disabled = false;
+      if (result.error) {
+        cloudStatus.textContent = result.error.toLowerCase().includes('not found')
+          ? 'CODE NOT FOUND'
+          : `ERROR: ${result.error.toUpperCase()}`;
+      } else {
+        const best = result.bestScore ?? 0;
+        cloudStatus.textContent = `RECOVERED — BEST ${best.toString().padStart(7, '0')}`;
+        recoverInput.value = '';
+        refreshCloudUI();
+      }
+    };
+    loadRcBtn.addEventListener('click', () => { void doLoad(); });
+    loadRcBtn.addEventListener('touchend', (e) => { e.preventDefault(); void doLoad(); }, { passive: false });
+    recoverInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') void doLoad(); });
+
     // Close panel on outside click
     document.addEventListener('pointerdown', (e) => {
       if (this._settingsOpen && !panel.contains(e.target as Node) && e.target !== gear) {
@@ -941,62 +976,6 @@ export class HUD {
     setTimeout(dismiss, 3000);
   }
 
-  private _showRecoverModal(): void {
-    this.elOverlay.classList.remove('title-mode');
-    this.elOverlay.innerHTML = `
-      <div class="subtitle" style="letter-spacing:6px;margin-bottom:14px;">RECOVER SAVE</div>
-      <div class="subtitle" style="font-size:clamp(9px,2vw,11px);color:#ff880088;margin-bottom:16px;max-width:320px;text-align:center;">
-        Enter the save code from your previous device or browser.
-      </div>
-      <input id="recover-code-input" type="text" maxlength="28" autocomplete="off"
-        spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
-        style="width:100%;max-width:300px;text-transform:uppercase;letter-spacing:2px;text-align:center;">
-      <div id="recover-status" style="min-height:20px;font-size:clamp(9px,2vw,11px);color:#ff4444;margin-top:8px;"></div>
-      <button id="btn-recover-submit" style="margin-top:8px;">RECOVER</button>
-      <button id="btn-recover-back" style="border-color:#00ffcc55;color:#00ffcc88;text-shadow:none;box-shadow:none;font-size:clamp(9px,2.2vw,12px);">BACK</button>
-    `;
-    this.elOverlay.classList.remove('hidden');
-
-    const codeInput   = this.elOverlay.querySelector('#recover-code-input')    as HTMLInputElement;
-    const statusEl    = this.elOverlay.querySelector('#recover-status')         as HTMLElement;
-    const submitBtn   = this.elOverlay.querySelector('#btn-recover-submit')     as HTMLButtonElement;
-    const backBtn     = this.elOverlay.querySelector('#btn-recover-back')!;
-
-    const goBack = () => this._showTitle();
-    backBtn.addEventListener('click', goBack);
-    backBtn.addEventListener('touchend', (e) => { e.preventDefault(); goBack(); }, { passive: false });
-
-    const doRecover = async () => {
-      const code = codeInput.value.trim();
-      if (code.replace(/[^A-Za-z0-9]/g, '').length < 15) {
-        statusEl.textContent = 'CODE TOO SHORT — CHECK AND TRY AGAIN';
-        statusEl.style.color = '#ff4444';
-        return;
-      }
-      submitBtn.disabled = true;
-      statusEl.style.color = '#00ffcc88';
-      statusEl.textContent = 'RECOVERING…';
-      const result = await recoverSave(code);
-      submitBtn.disabled = false;
-      if (result.error) {
-        statusEl.style.color = '#ff4444';
-        statusEl.textContent = result.error.includes('not found')
-          ? 'CODE NOT FOUND — CHECK AND TRY AGAIN'
-          : `ERROR: ${result.error.toUpperCase()}`;
-      } else {
-        statusEl.style.color = '#00ffcc';
-        const best = result.bestScore ?? 0;
-        statusEl.textContent = `RECOVERED! BEST SCORE: ${best.toString().padStart(7, '0')}`;
-        setTimeout(() => this._showTitle(), 1800);
-      }
-    };
-
-    submitBtn.addEventListener('click', () => { void doRecover(); });
-    submitBtn.addEventListener('touchend', (e) => { e.preventDefault(); void doRecover(); }, { passive: false });
-    codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') void doRecover(); });
-    setTimeout(() => codeInput.focus(), 80);
-  }
-
   private _renderLeaderboard(entries: LeaderboardRecord[]): string {
     const rows = entries.map(e => {
       const cls   = e.isPlayer ? 'lb-row lb-player' : 'lb-row';
@@ -1014,21 +993,6 @@ export class HUD {
       else el.setAttribute(k === 'id' ? 'id' : k, v ?? '');
     }
     return el;
-  }
-
-  private _wireBtnWithNameSave(sel: string): void {
-    const btn = this.elOverlay.querySelector(sel)!;
-    let fired = false;
-    const go  = () => {
-      if (fired) return;
-      fired = true;
-      const nameInput = this.elOverlay.querySelector('#player-name-input') as HTMLInputElement | null;
-      if (nameInput) setLocalPlayerName(nameInput.value);
-      this.hideOverlay();
-      window.dispatchEvent(new CustomEvent('game:start'));
-    };
-    btn.addEventListener('click',    go);
-    btn.addEventListener('touchend', e => { e.preventDefault(); go(); }, { passive: false });
   }
 
   private _wireBtn(sel: string): void {
