@@ -477,7 +477,6 @@ export class HUD {
     this._lbMode = true;
     this.elOverlay.classList.remove('title-mode');
     this.elOverlay.innerHTML = `
-      <div class="subtitle" style="letter-spacing:6px;margin-bottom:14px;">TOP SCORES</div>
       <div id="title-lb-loading" class="lb-loading">FETCHING SCORES\u2026</div>
       <button id="btn-back">BACK</button>
     `;

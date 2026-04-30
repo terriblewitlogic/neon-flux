@@ -10,5 +10,5 @@ routes = [
 [[d1_databases]]
 binding = "DB"
 database_name = "neon-flux-leaderboard"
-database_id = ""   # fill in after: wrangler d1 create neon-flux-leaderboard
+database_id = "a2207ae0-f89e-4d3f-b9e6-34584ec0c2e8"
 migrations_dir = "cloudflare/migrations"
