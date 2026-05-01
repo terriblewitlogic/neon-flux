@@ -175,9 +175,11 @@ export class Game {
   // Portals
   private _exitPortal:   THREE.Group | null = null;
   private _startPortal:  THREE.Group | null = null;
-  private _portalMats:   THREE.MeshBasicMaterial[] = [];
-  private _portalHue     = 0;
-  private _portalTrig    = false;
+  private _portalMats:   Array<THREE.MeshBasicMaterial | THREE.PointsMaterial> = [];
+  private _portalPBufs:  Array<{ init: Float32Array; attr: THREE.BufferAttribute }> = [];
+  private _portalHue          = 0;
+  private _portalTrig         = false;
+  private _startPortalActive  = false;
 
   // Analytics
   private _firstChain          = false;
@@ -1599,22 +1601,29 @@ export class Game {
   }
 
   private _initPortals(): void {
-    // Exit portal — upper-left, under where the score HUD sits in world space
     this._exitPortal = this._makePortal(-108, 72);
     this.scene.add(this._exitPortal);
 
-    // Start portal — only when player arrived via webring with a ref to go back to
+    // Preload exit-portal destination so the redirect feels instant
+    const pre = document.createElement('iframe');
+    pre.src = 'https://vibej.am/portal/2026';
+    pre.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
+    document.body.appendChild(pre);
+
     const qs = new URLSearchParams(window.location.search);
     if ((qs.get('portal') === 'true' || qs.get('portal') === '1') && qs.get('ref')) {
       this._startPortal = this._makePortal(108, 72);
       this.scene.add(this._startPortal);
+      // 5-second grace period so players don't accidentally teleport back
+      setTimeout(() => { this._startPortalActive = true; }, 5000);
     }
   }
 
   private _makePortal(x: number, y: number): THREE.Group {
-    const R   = 10;
+    const R     = 10;
     const group = new THREE.Group();
     group.position.set(x, y, ARENA.GAME_Z + 1);
+    group.rotation.x = 0.35;
 
     const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.95 });
     const discMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.22, side: THREE.DoubleSide });
@@ -1622,6 +1631,25 @@ export class Game {
 
     group.add(new THREE.Mesh(new THREE.TorusGeometry(R, 1.3, 16, 64), ringMat));
     group.add(new THREE.Mesh(new THREE.CircleGeometry(R - 0.3, 48), discMat));
+
+    // Particle ring
+    const pCount = 1000;
+    const positions = new Float32Array(pCount * 3);
+    for (let i = 0; i < pCount; i++) {
+      const angle      = (i / pCount) * Math.PI * 2;
+      const r          = R + (Math.random() - 0.5) * 3;
+      positions[i * 3]     = Math.cos(angle) * r;
+      positions[i * 3 + 1] = Math.sin(angle) * r;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
+    }
+    const initY = positions.slice();
+    const attr  = new THREE.BufferAttribute(positions, 3);
+    const pGeo  = new THREE.BufferGeometry();
+    pGeo.setAttribute('position', attr);
+    const pMat = new THREE.PointsMaterial({ color: 0x00ff88, size: 0.45, transparent: true, opacity: 0.75 });
+    this._portalMats.push(pMat);
+    this._portalPBufs.push({ init: initY, attr });
+    group.add(new THREE.Points(pGeo, pMat));
 
     // "PORTAL" text baked into a canvas texture, rendered inside the disc
     const cv  = document.createElement('canvas');
@@ -1644,23 +1672,29 @@ export class Game {
   private _tickPortals(dt: number): void {
     if (!this._exitPortal) return;
 
-    // Show only during active gameplay
     const active = this.phase === 'playing' || this.phase === 'dying' || this.phase === 'tutorial';
     this._exitPortal.visible = active;
     if (this._startPortal) this._startPortal.visible = active;
 
-    // Cycle hue across all ring + disc materials
     this._portalHue = (this._portalHue + dt * 80) % 360;
     const col = new THREE.Color().setHSL(this._portalHue / 360, 1.0, 0.55);
     for (const mat of this._portalMats) mat.color = col;
 
-    // Spin the rings slowly
     this._exitPortal.rotation.z += dt * 0.4;
     if (this._startPortal) this._startPortal.rotation.z -= dt * 0.4;
 
+    // Animate particle positions with a sin wave
+    const t = Date.now() * 0.001;
+    for (const { init, attr } of this._portalPBufs) {
+      const pos = attr.array as Float32Array;
+      for (let i = 0; i < pos.length; i += 3) {
+        pos[i + 1] = init[i + 1] + 0.5 * Math.sin(t + i);
+      }
+      attr.needsUpdate = true;
+    }
+
     if (!active || this._portalTrig) return;
 
-    // Proximity trigger — exit portal sends player into the webring
     const ex = Math.hypot(this._px - this._exitPortal.position.x, this._py - this._exitPortal.position.y);
     if (ex < R_PORTAL_TRIGGER) {
       this._portalTrig = true;
@@ -1673,14 +1707,13 @@ export class Game {
       return;
     }
 
-    // Start portal sends player back to the game they came from
-    if (this._startPortal) {
+    if (this._startPortal && this._startPortalActive) {
       const sx = Math.hypot(this._px - this._startPortal.position.x, this._py - this._startPortal.position.y);
       if (sx < R_PORTAL_TRIGGER) {
         this._portalTrig = true;
         const qs  = new URLSearchParams(window.location.search);
         const ref = qs.get('ref') ?? '';
-        let url   = /^https?:\/\//i.test(ref) ? ref : 'https://' + ref;
+        const url = /^https?:\/\//i.test(ref) ? ref : 'https://' + ref;
         qs.delete('ref');
         const s = qs.toString();
         window.location.href = url + (s ? '?' + s : '');
