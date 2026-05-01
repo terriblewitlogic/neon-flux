@@ -1,9 +1,3 @@
-// ─── HUD (EEE Edition) ───────────────────────────────────────────────────────
-// HTML overlay for Every Extend Extra gameplay display.
-//
-// Shows: score, timer, bombs (lives), quicken, max chain, extend target,
-//        detonation charge ring, chain announcements, floating messages.
-
 import { EEE } from './config';
 import { NeonFluxLogo } from './NeonFluxLogo';
 import { GameOverLogo } from './GameOverLogo';
@@ -15,7 +9,6 @@ import {
   recoverSave,
 } from './platform';
 
-// Declare emrg global (injected by analytics snippet)
 declare global {
   interface Window {
     emrg?: { track: (event: string, props?: Record<string, unknown>) => void };

@@ -183,15 +183,6 @@ export class VisualEffects {
 
   get multiplier(): number { return this._multiplier; }
 
-  /**
-   * Spawn ambient Minter particles that scale with kill-chain intensity.
-   * Call every frame from Game._updatePlaying().
-   *
-   *  mult 1  → nothing
-   *  mult 3  → occasional tunnel-wall sparks
-   *  mult 6  → dense inward drift + spiral player wake
-   *  mult 9  → constant psychedelic particle rain on every beat
-   */
   spawnMinterParticles(
     playerPos:  THREE.Vector3,
     mult:       number,

@@ -70,13 +70,6 @@ export class TunnelRenderer {
     }
   }
 
-  /**
-   * Call every frame.
-   * @param minterMult  kill-chain multiplier 1–9
-   * @param beatAccent  0–1 transient from MusicEngine
-   * @param speedFactor 0–1 progression speed (0=start, 1=max)
-   * @param quickenFrac 0–1 quicken pickup fraction (0=none, 1=max) — drives intensity
-   */
   update(
     playerPos:   THREE.Vector3,
     _bloomScale: number,

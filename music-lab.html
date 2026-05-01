@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neon Flux — Music Mode Lab</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(ellipse at 50% 30%, #0a001a 0%, #03000d 60%, #000004 100%);
+      color: #00ffcc;
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 60px;
+      gap: 32px;
+    }
+
+    h1 {
+      font-size: clamp(16px, 3vw, 22px);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      text-shadow: 0 0 20px #00ffcc88;
+      color: #00ffcccc;
+    }
+    .sub {
+      font-size: 11px;
+      color: #00ffcc44;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-top: -20px;
+    }
+
+    /* ── Transport ─────────────────────────────────────── */
+    .transport {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .btn {
+      background: transparent;
+      border: 2px solid #00ffcc;
+      color: #00ffcc;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      padding: 12px 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-shadow: 0 0 10px #00ffcc;
+      box-shadow: 0 0 16px rgba(0,255,204,0.2), inset 0 0 16px rgba(0,255,204,0.04);
+      transition: box-shadow 0.15s, opacity 0.15s;
+    }
+    .btn:hover { box-shadow: 0 0 28px rgba(0,255,204,0.45), inset 0 0 20px rgba(0,255,204,0.08); }
+    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .track-btn { font-size: 11px; padding: 12px 16px; border-color: #00ffcc33; color: #00ffcc44; text-shadow: none; box-shadow: none; }
+    .track-btn:hover { border-color: #00ffcc66; color: #00ffcc88; box-shadow: none; }
+    .track-btn.active { border-color: #00ffcc; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; }
+    .btn.playing {
+      border-color: #ff4466;
+      color: #ff4466;
+      text-shadow: 0 0 10px #ff4466;
+      box-shadow: 0 0 16px rgba(255,68,102,0.3);
+    }
+    #status {
+      font-size: 10px;
+      color: #00ffcc55;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      min-width: 160px;
+      text-align: center;
+    }
+
+    /* ── Visualiser ────────────────────────────────────── */
+    #viz {
+      width: min(600px, 90vw);
+      height: 56px;
+      border: 1px solid #00ffcc18;
+      border-radius: 6px;
+      background: rgba(0,255,204,0.02);
+    }
+
+    /* ── Mode grid ─────────────────────────────────────── */
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      color: #00ffcc55;
+      text-transform: uppercase;
+      align-self: flex-start;
+      margin-bottom: -18px;
+    }
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 10px;
+      width: min(760px, 92vw);
+    }
+    .mode-btn {
+      background: rgba(0,255,204,0.03);
+      border: 1px solid rgba(0,255,204,0.18);
+      border-radius: 8px;
+      padding: 13px 14px 11px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+      color: #00ffccaa;
+    }
+    .mode-btn:hover {
+      background: rgba(0,255,204,0.07);
+      border-color: rgba(0,255,204,0.38);
+    }
+    .mode-btn.active {
+      background: rgba(0,255,204,0.10);
+      border-color: #00ffcc;
+      box-shadow: 0 0 14px rgba(0,255,204,0.22);
+      color: #00ffcc;
+    }
+    .mode-name {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .mode-notes {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      color: #00ffcc55;
+      margin-bottom: 5px;
+    }
+    .mode-btn.active .mode-notes { color: #00ffcc88; }
+    .mode-vibe {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      font-style: italic;
+      color: #00ffcc44;
+    }
+    .mode-btn.active .mode-vibe { color: #00ffcc66; }
+
+    /* Colour accents per mode feel */
+    .mode-btn[data-feel="bright"].active   { border-color: #ffee44; color: #ffee44; box-shadow: 0 0 14px rgba(255,238,68,0.22); }
+    .mode-btn[data-feel="bright"]:hover    { border-color: #ffee4466; }
+    .mode-btn[data-feel="dream"].active    { border-color: #cc88ff; color: #cc88ff; box-shadow: 0 0 14px rgba(204,136,255,0.22); }
+    .mode-btn[data-feel="dream"]:hover     { border-color: #cc88ff66; }
+    .mode-btn[data-feel="dark"].active     { border-color: #ff4488; color: #ff4488; box-shadow: 0 0 14px rgba(255,68,136,0.22); }
+    .mode-btn[data-feel="dark"]:hover      { border-color: #ff448866; }
+    .mode-btn[data-feel="exotic"].active   { border-color: #ff9933; color: #ff9933; box-shadow: 0 0 14px rgba(255,153,51,0.22); }
+    .mode-btn[data-feel="exotic"]:hover    { border-color: #ff993366; }
+    .mode-btn[data-feel="rock"].active     { border-color: #44aaff; color: #44aaff; box-shadow: 0 0 14px rgba(68,170,255,0.22); }
+    .mode-btn[data-feel="rock"]:hover      { border-color: #44aaff66; }
+
+    /* ── Scale display ─────────────────────────────────── */
+    .piano-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    #scale-label {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: #00ffcc66;
+      text-transform: uppercase;
+    }
+    .piano {
+      display: flex;
+      gap: 3px;
+    }
+    .key {
+      width: 28px;
+      height: 44px;
+      border-radius: 3px;
+      border: 1px solid #00ffcc22;
+      background: rgba(0,255,204,0.04);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      padding-bottom: 5px;
+      font-size: 8px;
+      letter-spacing: 0.05em;
+      color: #00ffcc33;
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .key.in-scale {
+      background: rgba(0,255,204,0.14);
+      border-color: #00ffcc66;
+      color: #00ffccaa;
+    }
+    .key.root {
+      background: rgba(0,255,204,0.30);
+      border-color: #00ffcc;
+      color: #00ffcc;
+      box-shadow: 0 0 10px rgba(0,255,204,0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Neon Flux</h1>
+  <div class="sub">Music Mode Lab</div>
+
+  <div class="transport">
+    <button class="btn" id="playBtn">▶ PLAY</button>
+    <button class="btn track-btn" id="track1Btn">TRACK 1</button>
+    <button class="btn track-btn" id="track2Btn">TRACK 2</button>
+    <div id="status">LOAD TRACK FIRST</div>
+  </div>
+
+  <canvas id="viz"></canvas>
+
+  <div class="section-label">Select Mode</div>
+  <div class="mode-grid" id="modeGrid"></div>
+
+  <div class="piano-wrap">
+    <div id="scale-label">A — Natural Minor</div>
+    <div class="piano" id="piano"></div>
+  </div>
+
+<script>
+// ─── Mode definitions (root = A) ─────────────────────────────────────────────
+// Each mode is defined as semitone offsets from the root (A).
+// A = MIDI pitch class 9 (C=0 convention).
+
+const ROOT_PC = 9; // A
+
+const MODES = [
+  {
+    id: 'natural_minor',
+    name: 'Natural Minor',
+    alias: 'Aeolian',
+    intervals: [0, 2, 3, 5, 7, 8, 10],
+    notes: 'A  B  C  D  E  F  G',
+    vibe: 'dark · melancholic · classic',
+    feel: 'neutral',
+  },
+  {
+    id: 'harmonic_minor',
+    name: 'Harmonic Minor',
+    alias: '',
+    intervals: [0, 2, 3, 5, 7, 8, 11],
+    notes: 'A  B  C  D  E  F  G#',
+    vibe: 'exotic · dramatic · tense',
+    feel: 'exotic',
+  },
+  {
+    id: 'melodic_minor',
+    name: 'Melodic Minor',
+    alias: 'Jazz Minor',
+    intervals: [0, 2, 3, 5, 7, 9, 11],
+    notes: 'A  B  C  D  E  F#  G#',
+    vibe: 'smooth · modern · jazzy',
+    feel: 'neutral',
+  },
+  {
+    id: 'dorian',
+    name: 'Dorian',
+    alias: '',
+    intervals: [0, 2, 3, 5, 7, 9, 10],
+    notes: 'A  B  C  D  E  F#  G',
+    vibe: 'funky · soulful · minor+',
+    feel: 'rock',
+  },
+  {
+    id: 'phrygian',
+    name: 'Phrygian',
+    alias: '',
+    intervals: [0, 1, 3, 5, 7, 8, 10],
+    notes: 'A  Bb  C  D  E  F  G',
+    vibe: 'very dark · flamenco · tense',
+    feel: 'dark',
+  },
+  {
+    id: 'phrygian_dominant',
+    name: 'Phrygian Dom.',
+    alias: 'Spanish · Jewish',
+    intervals: [0, 1, 4, 5, 7, 8, 10],
+    notes: 'A  Bb  C#  D  E  F  G',
+    vibe: 'middle-eastern · intense',
+    feel: 'exotic',
+  },
+  {
+    id: 'mixolydian',
+    name: 'Mixolydian',
+    alias: '',
+    intervals: [0, 2, 4, 5, 7, 9, 10],
+    notes: 'A  B  C#  D  E  F#  G',
+    vibe: 'major feel · flat 7 · rock',
+    feel: 'rock',
+  },
+  {
+    id: 'major',
+    name: 'Major',
+    alias: 'Ionian',
+    intervals: [0, 2, 4, 5, 7, 9, 11],
+    notes: 'A  B  C#  D  E  F#  G#',
+    vibe: 'bright · resolved · happy',
+    feel: 'bright',
+  },
+  {
+    id: 'lydian',
+    name: 'Lydian',
+    alias: '',
+    intervals: [0, 2, 4, 6, 7, 9, 11],
+    notes: 'A  B  C#  D#  E  F#  G#',
+    vibe: 'bright · dreamy · raised 4th',
+    feel: 'dream',
+  },
+  {
+    id: 'locrian',
+    name: 'Locrian',
+    alias: '',
+    intervals: [0, 1, 3, 5, 6, 8, 10],
+    notes: 'A  Bb  C  D  Eb  F  G',
+    vibe: 'dissonant · unstable · eerie',
+    feel: 'dark',
+  },
+  {
+    id: 'whole_tone',
+    name: 'Whole Tone',
+    alias: '',
+    intervals: [0, 2, 4, 6, 8, 10],
+    notes: 'A  B  C#  D#  F  G',
+    vibe: 'floating · ambiguous · dreamy',
+    feel: 'dream',
+  },
+  {
+    id: 'diminished',
+    name: 'Diminished',
+    alias: 'Octatonic',
+    intervals: [0, 2, 3, 5, 6, 8, 9, 11],
+    notes: 'A  B  C  D  Eb  F  F#  G#',
+    vibe: 'tense · symmetric · unstable',
+    feel: 'dark',
+  },
+];
+
+// ─── Quantize a MIDI pitch to the nearest scale tone ─────────────────────────
+
+function snapToScale(pitch, intervals) {
+  const scaleSet = new Set(intervals.map(i => (ROOT_PC + i) % 12));
+  const pc = ((pitch % 12) + 12) % 12;
+  if (scaleSet.has(pc)) return pitch;
+  for (let d = 1; d <= 6; d++) {
+    if (scaleSet.has((pc + d) % 12)) return pitch + d;
+    if (scaleSet.has(((pc - d) + 12) % 12)) return pitch - d;
+  }
+  return pitch;
+}
+
+// ─── MIDI extraction (ported from MusicEngine.ts) ────────────────────────────
+
+const OCTAVE_SHIFT = -12;
+const PITCH_MIN    = 21;
+const PITCH_MAX    = 91;
+
+const DRUM_FREQS = {
+  35:58, 36:65, 37:260, 38:220, 40:220, 39:280,
+  41:130, 43:155, 45:185, 47:215, 48:260, 50:310,
+  42:820, 44:750, 46:980,
+  49:1900, 51:1350, 52:1600, 53:1100, 57:1750, 59:1250,
+};
+
+function drumFreq(p) { return DRUM_FREQS[p] ?? 400; }
+
+function extractNotes(buf, mode) {
+  const d = new Uint8Array(buf);
+  let p = 0;
+  const u32 = () => { const v=(d[p]<<24|d[p+1]<<16|d[p+2]<<8|d[p+3])>>>0; p+=4; return v; };
+  const u16 = () => { const v=(d[p]<<8|d[p+1]); p+=2; return v; };
+  const u8  = () => d[p++];
+  const vl  = () => {
+    let v = 0;
+    for (;;) { const b = u8(); v = (v<<7)|(b&0x7F); if (!(b&0x80)) break; }
+    return v;
+  };
+
+  p = 4;
+  const hLen = u32();
+  u16(); // format
+  const nTracks = u16();
+  const tpqn = u16();
+  p = 4 + 4 + hLen;
+
+  let tempo = 612245;
+  const pending = new Map();
+  const notes = [];
+
+  for (let ti = 0; ti < nTracks; ti++) {
+    p += 4;
+    const cLen = u32();
+    const cEnd = p + cLen;
+    let absT = 0, rs = 0;
+
+    while (p < cEnd) {
+      absT += vl();
+      const peek = d[p];
+
+      if (peek === 0xFF) {
+        p++;
+        const mt = u8(), ml = vl();
+        if (mt === 0x51 && ml === 3) tempo = (d[p]<<16)|(d[p+1]<<8)|d[p+2];
+        p += ml;
+      } else if (peek === 0xF0 || peek === 0xF7) {
+        p++; p += vl();
+      } else {
+        if (peek & 0x80) { rs = peek; p++; }
+        const ev = (rs & 0xF0) >> 4;
+        const ch = rs & 0x0F;
+        const sec = (absT / tpqn) * (tempo / 1e6);
+
+        if (ev === 0x9) {
+          const pitch = u8(), vel = u8();
+          const k = (ch << 7) | pitch;
+          if (vel > 0) {
+            pending.set(k, { time: sec, vel: vel/127, isDrum: ch === 9 });
+          } else {
+            const s = pending.get(k);
+            if (s) {
+              if (s.isDrum) {
+                notes.push({ time: s.time, dur: 0.05, pitch, velocity: s.vel, isDrum: true });
+              } else {
+                const shifted = snapToScale(pitch + OCTAVE_SHIFT, mode.intervals);
+                if (shifted >= PITCH_MIN && shifted <= PITCH_MAX)
+                  notes.push({ time: s.time, dur: Math.max(0.05, sec-s.time), pitch: shifted, velocity: s.vel });
+              }
+              pending.delete(k);
+            }
+          }
+        } else if (ev === 0x8) {
+          const pitch = u8(); u8();
+          const k = (ch << 7) | pitch;
+          const s = pending.get(k);
+          if (s) {
+            if (s.isDrum) {
+              notes.push({ time: s.time, dur: 0.05, pitch, velocity: s.vel, isDrum: true });
+            } else {
+              const shifted = snapToScale(pitch + OCTAVE_SHIFT, mode.intervals);
+              if (shifted >= PITCH_MIN && shifted <= PITCH_MAX)
+                notes.push({ time: s.time, dur: Math.max(0.05, sec-s.time), pitch: shifted, velocity: s.vel });
+            }
+            pending.delete(k);
+          }
+        } else if (ev === 0xA || ev === 0xB || ev === 0xE) { p += 2; }
+          else if (ev === 0xC || ev === 0xD) { p += 1; }
+          else { p = cEnd; break; }
+      }
+    }
+    p = cEnd;
+  }
+
+  notes.sort((a, b) => a.time - b.time);
+  return notes;
+}
+
+// ─── Audio engine ─────────────────────────────────────────────────────────────
+
+const VOICE_COUNT = 12;
+const LOOK_AHEAD  = 0.25;
+const FREQ_MIN = 780, FREQ_MAX = 8000;
+
+let ctx = null, mfilt = null, masterGain = null, feedbackGain = null;
+let voices = [], allNotes = [], noteIdx = 0, startAt = 0;
+let rafId = null, playing = false, lfoPhase = 0, beatAccent = 0;
+let rawBuf = null; // raw ArrayBuffer of MIDI file
+
+function buildChain() {
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -18; comp.ratio.value = 5;
+  comp.knee.value = 6; comp.attack.value = 0.008; comp.release.value = 0.10;
+  comp.connect(ctx.destination);
+
+  masterGain = ctx.createGain();
+  masterGain.gain.value = 0;
+  masterGain.connect(comp);
+
+  const delay = ctx.createDelay(1.0);
+  delay.delayTime.value = 0.22;
+  feedbackGain = ctx.createGain();
+  feedbackGain.gain.value = 0.38;
+  const delWet = ctx.createGain();
+  delWet.gain.value = 0.28;
+  delay.connect(feedbackGain);
+  feedbackGain.connect(delay);
+  delay.connect(delWet);
+  delWet.connect(masterGain);
+
+  mfilt = ctx.createBiquadFilter();
+  mfilt.type = 'lowpass';
+  mfilt.frequency.value = 1200;
+  mfilt.Q.value = 0.8;
+  mfilt.connect(masterGain);
+  mfilt.connect(delay);
+
+  const voiceBus = ctx.createGain();
+  voiceBus.gain.value = 0.75 / VOICE_COUNT;
+  voiceBus.connect(mfilt);
+
+  voices = [];
+  for (let i = 0; i < VOICE_COUNT; i++) {
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    const env = ctx.createGain();
+    env.gain.value = 0;
+    osc.connect(env);
+    env.connect(voiceBus);
+    osc.start();
+    voices.push({ osc, env, startTime: 0, active: false });
+  }
+}
+
+function triggerVoice(pitch, dur, velocity, when, isDrum) {
+  if (!ctx) return;
+  let v = voices.find(x => !x.active);
+  if (!v) v = voices.reduce((o, x) => x.startTime < o.startTime ? x : o);
+
+  let freq, vol, attack, decay, sustain, release;
+  if (isDrum) {
+    freq = drumFreq(pitch);
+    vol = velocity * (freq < 200 ? 0.30 : freq < 700 ? 0.14 : 0.08);
+    attack = 0.001; decay = freq < 200 ? 0.06 : 0.025; sustain = 0; release = freq < 200 ? 0.10 : 0.04;
+  } else {
+    freq = 440 * Math.pow(2, (pitch - 69) / 12);
+    const isLow = pitch < 50;
+    vol = velocity * (isLow ? 0.18 : 0.11);
+    attack = isLow ? 0.012 : 0.008;
+    decay = isLow ? 0.3 : 0.12; sustain = isLow ? 0.50 : 0.65; release = isLow ? 0.40 : 0.28;
+  }
+
+  v.osc.frequency.cancelScheduledValues(when);
+  v.osc.frequency.setValueAtTime(freq, when);
+  v.env.gain.cancelScheduledValues(when);
+  v.env.gain.setValueAtTime(0, when);
+  v.env.gain.linearRampToValueAtTime(vol, when + attack);
+  v.env.gain.setTargetAtTime(vol * sustain, when + attack + attack * 0.1, decay * 0.4);
+  const offTime = when + Math.max(dur, attack + 0.02);
+  v.env.gain.setTargetAtTime(0, offTime, release * 0.4);
+  v.active = true; v.startTime = when;
+  const freeInMs = Math.max(0, (offTime - ctx.currentTime + release * 2)) * 1000;
+  setTimeout(() => { if (v) v.active = false; }, freeInMs);
+}
+
+function tick() {
+  if (!playing || !ctx) return;
+  const now = ctx.currentTime;
+  const horizon = now + LOOK_AHEAD;
+
+  while (noteIdx < allNotes.length && startAt + allNotes[noteIdx].time <= horizon) {
+    const n = allNotes[noteIdx++];
+    const when = startAt + n.time;
+    if (when < now - 0.05) continue;
+    triggerVoice(n.pitch, n.dur, n.velocity, when, n.isDrum ?? false);
+  }
+
+  if (noteIdx >= allNotes.length) {
+    const last = allNotes[allNotes.length - 1];
+    startAt = startAt + last.time + last.dur + 0.5;
+    noteIdx = 0;
+  }
+
+  lfoPhase += 1/60 * (Math.PI * 2 / 15);
+  const lfo = Math.sin(lfoPhase) * 0.22 + 0.78;
+  beatAccent = Math.max(0, beatAccent - (1/60) * 6);
+  const target = Math.max(FREQ_MIN, Math.min(FREQ_MAX, 1800 * lfo + beatAccent * 700));
+  mfilt.frequency.setTargetAtTime(target, now, 0.025);
+  mfilt.Q.setTargetAtTime(0.8 + beatAccent * 2.6, now, 0.04);
+
+  rafId = requestAnimationFrame(tick);
+}
+
+async function startPlayback() {
+  stopPlayback();
+  ctx = new AudioContext();
+  await ctx.resume();
+  buildChain();
+  masterGain.gain.setValueAtTime(0, ctx.currentTime);
+  masterGain.gain.linearRampToValueAtTime(1.248, ctx.currentTime + 2.5);
+  startAt = ctx.currentTime + 0.2;
+  noteIdx = 0;
+  lfoPhase = 0;
+  beatAccent = 0;
+  playing = true;
+  rafId = requestAnimationFrame(tick);
+}
+
+function stopPlayback() {
+  playing = false;
+  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+  if (masterGain && ctx) {
+    const now = ctx.currentTime;
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+    masterGain.gain.linearRampToValueAtTime(0, now + 0.5);
+    const ref = ctx;
+    ctx = null;
+    setTimeout(() => { try { ref.close(); } catch {} }, 800);
+  } else {
+    ctx = null;
+  }
+}
+
+// ─── UI ───────────────────────────────────────────────────────────────────────
+
+let currentMode = MODES[0]; // start with natural minor
+
+function buildModeGrid() {
+  const grid = document.getElementById('modeGrid');
+  MODES.forEach(mode => {
+    const btn = document.createElement('button');
+    btn.className = 'mode-btn' + (mode === currentMode ? ' active' : '');
+    btn.dataset.feel = mode.feel;
+    btn.innerHTML = `
+      <div class="mode-name">${mode.name}${mode.alias ? `<span style="font-weight:400;color:inherit;opacity:0.5"> · ${mode.alias}</span>` : ''}</div>
+      <div class="mode-notes">${mode.notes}</div>
+      <div class="mode-vibe">${mode.vibe}</div>
+    `;
+    btn.addEventListener('click', () => selectMode(mode));
+    grid.appendChild(btn);
+  });
+}
+
+function buildPiano() {
+  const piano = document.getElementById('piano');
+  // One octave from A to G# (12 notes), relative to root A
+  const noteNames = ['A','Bb','B','C','C#','D','D#','E','F','F#','G','G#'];
+  piano.innerHTML = '';
+  const scaleSet = new Set(currentMode.intervals);
+  noteNames.forEach((name, i) => {
+    const div = document.createElement('div');
+    const isRoot = i === 0;
+    const inScale = scaleSet.has(i);
+    div.className = 'key' + (isRoot ? ' root' : inScale ? ' in-scale' : '');
+    div.textContent = name;
+    piano.appendChild(div);
+  });
+  document.getElementById('scale-label').textContent =
+    `A — ${currentMode.name}${currentMode.alias ? ' (' + currentMode.alias + ')' : ''}`;
+}
+
+function selectMode(mode) {
+  currentMode = mode;
+  // Update grid
+  document.querySelectorAll('.mode-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', MODES[i] === mode);
+  });
+  buildPiano();
+  if (rawBuf) {
+    allNotes = extractNotes(rawBuf.slice(0), mode);
+    noteIdx = 0;
+  }
+}
+
+// ─── Visualiser ───────────────────────────────────────────────────────────────
+
+const vizCanvas = document.getElementById('viz');
+const vizCtx = vizCanvas.getContext('2d');
+let barHeights = new Array(32).fill(0);
+
+function drawViz() {
+  const W = vizCanvas.width, H = vizCanvas.height;
+  vizCtx.clearRect(0, 0, W, H);
+  const bw = (W - 32 * 2) / 32;
+
+  barHeights = barHeights.map((h, i) => {
+    const target = playing
+      ? Math.random() * 0.3 + (beatAccent * 0.5) + (mfilt ? Math.min(1, mfilt.frequency.value / FREQ_MAX) * 0.4 : 0)
+      : 0;
+    return h + (target - h) * 0.15;
+  });
+
+  barHeights.forEach((h, i) => {
+    const x = i * (bw + 2);
+    const bh = h * H;
+    const alpha = 0.3 + h * 0.7;
+    vizCtx.fillStyle = `rgba(0,255,204,${alpha.toFixed(2)})`;
+    vizCtx.shadowColor = '#00ffcc';
+    vizCtx.shadowBlur = h * 12;
+    vizCtx.fillRect(x, H - bh, bw, bh);
+  });
+  requestAnimationFrame(drawViz);
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+
+const playBtn  = document.getElementById('playBtn');
+const statusEl = document.getElementById('status');
+
+let currentTrackPath = '/track.mid';
+
+async function loadTrack(path = currentTrackPath) {
+  currentTrackPath = path;
+  stopPlayback();
+  playBtn.textContent = '▶ PLAY';
+  playBtn.classList.remove('playing');
+  statusEl.textContent = 'Loading…';
+  playBtn.disabled = true;
+
+  document.getElementById('track1Btn').classList.toggle('active', path === '/track.mid');
+  document.getElementById('track2Btn').classList.toggle('active', path === '/track2.mid');
+
+  try {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    rawBuf = await res.arrayBuffer();
+    allNotes = extractNotes(rawBuf.slice(0), currentMode);
+    noteIdx = 0;
+    statusEl.textContent = `${allNotes.length} notes · ready`;
+    playBtn.disabled = false;
+  } catch (e) {
+    statusEl.textContent = `Error: ${e.message}`;
+    console.error(e);
+  }
+}
+
+playBtn.addEventListener('click', async () => {
+  if (playing) {
+    stopPlayback();
+    playBtn.textContent = '▶ PLAY';
+    playBtn.classList.remove('playing');
+    statusEl.textContent = 'Stopped';
+  } else {
+    await startPlayback();
+    playBtn.textContent = '■ STOP';
+    playBtn.classList.add('playing');
+    statusEl.textContent = `Playing · ${currentMode.name}`;
+  }
+});
+
+// Size canvas
+function resizeViz() {
+  vizCanvas.width  = vizCanvas.offsetWidth;
+  vizCanvas.height = vizCanvas.offsetHeight;
+}
+resizeViz();
+window.addEventListener('resize', resizeViz);
+
+document.getElementById('track1Btn').addEventListener('click', () => loadTrack('/track.mid'));
+document.getElementById('track2Btn').addEventListener('click', () => loadTrack('/track2.mid'));
+
+buildModeGrid();
+buildPiano();
+loadTrack('/track.mid');
+drawViz();
+</script>
+</body>
+</html>

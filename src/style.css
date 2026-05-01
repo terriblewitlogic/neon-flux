@@ -780,7 +780,7 @@ canvas {
   position: absolute;
   top: calc(max(env(safe-area-inset-top), 10px) + 42px);
   right: 8px;
-  width: 210px;
+  width: min(420px, calc(100vw - 20px));
   padding: 14px 16px;
   background: rgba(0, 6, 18, 0.96);
   border: 1px solid #00ffcc33;

@@ -1,48 +1,15 @@
-// ─── MusicEngine ──────────────────────────────────────────────────────────────
-//
-// Web Audio API music system for Any Additional Advantage.
-//
-// Signal chain (ported from music-engine.js):
-//   voice pool (sawtooth oscillators)
-//     → mfilt   (lowpass BiquadFilter  ← PRIMARY MODULATION POINT)
-//       → delay  (FeedbackDelay, 220ms)
-//         → masterGain → compressor → destination
-//
-// Filter modulation runs every frame and blends four independent signals:
-//   1. Section frequency  — opens as the track builds (650 Hz intro → 5800 Hz climax)
-//   2. Combat offset      — closes proportionally to live enemy count (-2800 Hz max)
-//   3. Kill-chain boost   — rewards kill chains with brighter sound (+450 Hz per level)
-//   4. Beat accent        — transient spike on every beat (decays in ~125ms)
-//
-// A slow LFO (15-second period) multiplies the section frequency so the
-// filter always has organic motion even with no combat activity.
-//
-// Usage:
-//   const engine = new MusicEngine();
-//   await engine.load('/track.mid');   // call once, before first game start
-//   engine.start();                    // call on user gesture (game start click)
-//   engine.setGameState(n, chain, beat); // call every frame
-//   engine.onBeat(beat);               // call from WaveScheduler per beat
-//   engine.update(dt);                 // call every frame
-//   engine.stop();                     // call on game over / restart
-
-// ─── MIDI note extractor ──────────────────────────────────────────────────────
-// Minimal parser — extracts Note On/Off pairs, skips drums (ch 9), applies
-// octave shift.  Handles running status and variable-length quantities.
-
-const OCTAVE_SHIFT  = -12;   // shift all notes one octave down (space atmosphere)
-const PITCH_MIN     = 21;    // ignore notes below A0
-const PITCH_MAX     = 91;    // ignore notes above G#6 (very high harmonics)
+const OCTAVE_SHIFT = -12;
+const PITCH_MIN    = 21;
+const PITCH_MAX    = 91;
 
 interface ParsedNote {
-  time:     number;   // seconds from track start
-  dur:      number;   // duration in seconds
-  pitch:    number;   // MIDI note number after shift (or drum id for ch9)
-  velocity: number;   // 0.0 – 1.0
-  isDrum?:  boolean;  // true for channel-9 percussion notes
+  time:     number;
+  dur:      number;
+  pitch:    number;
+  velocity: number;
+  isDrum?:  boolean;
 }
 
-// General MIDI ch9 drum id → synthesised frequency
 const _DRUM_FREQS: Record<number, number> = {
   35: 58,  36: 65,                      // bass kick
   37: 260, 38: 220, 40: 220, 39: 280,   // snare / clap
@@ -207,9 +174,6 @@ export class MusicEngine {
   private _lfoPhase     = 0;     // slow breathing oscillation
   private _quickenFrac  = 0;     // 0–1, set by setQuicken()
 
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  /** Fetch and parse the MIDI file — call once before first start() */
   async load(path: string): Promise<void> {
     try {
       const res = await fetch(path);
@@ -222,7 +186,6 @@ export class MusicEngine {
     }
   }
 
-  /** Start playback — must be called from a user-gesture context (click/tap) */
   async start(): Promise<void> {
     if (this._playing) this.stop();
     if (this.notes.length === 0) { console.warn('[MusicEngine] No notes — did you call load()?'); return; }
@@ -248,39 +211,29 @@ export class MusicEngine {
     this._chainPopIdx  = 0;
     this._lastKillTime = -999;
 
-    // Fade in over 2.5s — 1.248 (+30% from previous 0.96) to push MIDI further front
     this.masterGain!.gain.setValueAtTime(0, this.ctx.currentTime);
     this.masterGain!.gain.linearRampToValueAtTime(1.248, this.ctx.currentTime + 2.5);
 
     this._tick();
   }
 
-  /** Immediate stop — fades out over 0.4 s then closes AudioContext */
   stop(): void {
     this._fadeAndClose(0.4);
   }
 
-  /** Slow fade — lets music linger for `duration` seconds before silence */
   fadeOut(duration: number): void {
     this._fadeAndClose(duration);
   }
 
-  /**
-   * Gradual slow-mo death filter — closes the sound over `duration` seconds.
-   * Squelches the filter, swells reverb, and rises Q for a "tape wind-down" timbre.
-   */
   startDeathFilter(duration = 0.7): void {
     if (!this.mfilt || !this.ctx) return;
     const now = this.ctx.currentTime;
-    // Ramp filter from current freq down to a deep muffled 240 Hz
     this.mfilt.frequency.cancelScheduledValues(now);
     this.mfilt.frequency.setValueAtTime(this.mfilt.frequency.value, now);
     this.mfilt.frequency.linearRampToValueAtTime(240, now + duration);
-    // Q climbs to 12.0 — heavy woozy resonance, like a tape slowing down
     this.mfilt.Q.cancelScheduledValues(now);
     this.mfilt.Q.setValueAtTime(this.mfilt.Q.value, now);
     this.mfilt.Q.linearRampToValueAtTime(12.0, now + duration * 0.7);
-    // Swell feedback to near-max — infinite wash of echo through the death sequence
     if (this._feedbackGain) {
       this._feedbackGain.gain.cancelScheduledValues(now);
       this._feedbackGain.gain.setValueAtTime(this._feedbackGain.gain.value, now);
@@ -291,7 +244,6 @@ export class MusicEngine {
   private _fadeAndClose(duration: number): void {
     this._playing = false;
     if (this._rafId !== null) { cancelAnimationFrame(this._rafId); this._rafId = null; }
-    // Kill charge tone immediately on stop
     if (this._chargeToneOsc) {
       try { this._chargeToneOsc.stop(); } catch {}
       this._chargeToneOsc  = null;
@@ -310,110 +262,68 @@ export class MusicEngine {
     }
   }
 
-  // ── Per-frame update ────────────────────────────────────────────────────────
-
-  /**
-   * Call every game frame.  Drives all filter modulation:
-   * LFO breathing + beat accent decay + game-state targets → mfilt.frequency
-   */
   update(dt: number): void {
     if (!this._playing || !this.mfilt || !this.ctx) return;
 
-    const q = this._quickenFrac;
-    const qSq = q * q; // accelerating curve for more dramatic high-end effect
+    const q   = this._quickenFrac;
+    const qSq = q * q;
 
-    // ── 1. LFO — period shrinks from 15s down to ~4s at full quicken ───────
-    this._lfoPhase += dt * (Math.PI * 2 / 15) * (1 + q * 2.5);
-    // Oscillates between 0.56 and 1.0 — multiplies section frequency
-    const lfo = Math.sin(this._lfoPhase) * 0.22 + 0.78;
+    this._lfoPhase   += dt * (Math.PI * 2 / 15) * (1 + q * 2.5);
+    this._beatAccent  = Math.max(0, this._beatAccent - dt * 6);
+    const lfo         = Math.sin(this._lfoPhase) * 0.22 + 0.78;
 
-    // ── 2. Beat accent decay ────────────────────────────────────────────────
-    this._beatAccent = Math.max(0, this._beatAccent - dt * 6);
-
-    // ── 3. Compute target filter frequency ─────────────────────────────────
-    // Quicken pushes the filter wide open (brighter, more intense tone)
-    const quickenFreqBoost = q * 2200;
     const target = Math.max(FREQ_MIN, Math.min(FREQ_MAX,
-      this._sectionFreq * lfo   // section baseline, breathing with LFO
-      + this._combatOffset      // enemy pressure closes the filter
-      + this._chainBoost        // kill chain reward opens it
-      + this._beatAccent * 700  // transient peak on each beat hit
-      + quickenFreqBoost,       // quicken brightens and opens the sound
+      this._sectionFreq * lfo
+      + this._combatOffset
+      + this._chainBoost
+      + this._beatAccent * 700
+      + q * 2200,
     ));
 
-    // ── 4. Smooth ramp to target ────────────────────────────────────────────
     const now = this.ctx.currentTime;
     this.mfilt.frequency.setTargetAtTime(target, now, 0.025);
+    this.mfilt.Q.setTargetAtTime(
+      0.8 + this._beatAccent * 2.6 + (this._combatOffset < -500 ? 0.6 : 0) + qSq * 5.5,
+      now, 0.04,
+    );
 
-    // ── 5. Q modulation — resonance spikes with beat + rises hard with quicken
-    // At rest: Q ≈ 0.8; at full quicken: screaming resonance up to ~7.0
-    const combatQ  = this._combatOffset < -500 ? 0.6 : 0;
-    const quickenQ = qSq * 5.5;
-    this.mfilt.Q.setTargetAtTime(0.8 + this._beatAccent * 2.6 + combatQ + quickenQ, now, 0.04);
-
-    // ── 6. Delay feedback swells with quicken (more echo chaos at high levels)
     if (this._feedbackGain) {
-      const targetFeedback = 0.38 + qSq * 0.25; // 0.38 → 0.63 max
-      this._feedbackGain.gain.setTargetAtTime(Math.min(targetFeedback, 0.63), now, 0.15);
+      this._feedbackGain.gain.setTargetAtTime(Math.min(0.38 + qSq * 0.25, 0.63), now, 0.15);
     }
   }
 
-  /**
-   * Feed current game state every frame.
-   * @param enemyCount   number of alive enemies (0–MAX_ACTIVE)
-   * @param killChain    current kill-chain multiplier (1 = no chain)
-   * @param beat         current beat index from WaveScheduler
-   */
   setGameState(enemyCount: number, killChain: number, beat: number): void {
     this._sectionFreq  = this._sectionBaseFreq(beat);
-    this._combatOffset = -(enemyCount / 12) * 900;  // 0 → -900 Hz (darkens without silencing)
-    this._chainBoost   = Math.min(killChain - 1, 7) * 450; // 0 → +3150 Hz
+    this._combatOffset = -(enemyCount / 12) * 900;
+    this._chainBoost   = Math.min(killChain - 1, 7) * 450;
   }
 
-  /** Feed quicken level every frame (0–1 fraction of max quicken). */
   setQuicken(qFrac: number): void {
     this._quickenFrac = Math.max(0, Math.min(1, qFrac));
   }
 
-  /**
-   * Trigger beat-accent pulse — wire to WaveScheduler.onBeatCallback.
-   * Downbeats (every 4th) get a stronger accent + audible kick.
-   */
   onBeat(beat: number): void {
-    const isDownbeat = beat % 4 === 0;
-    this._beatAccent = isDownbeat ? 1.8 : 1.0;
+    this._beatAccent = beat % 4 === 0 ? 1.8 : 1.0;
   }
 
-  get isPlaying():   boolean { return this._playing; }
-  /** Current beat-accent value (1 = just fired, 0 = decayed) — read by Game.ts */
-  get beatAccent():  number  { return this._beatAccent; }
+  get isPlaying(): boolean { return this._playing; }
+  get beatAccent(): number { return this._beatAccent; }
 
-  /** Set music volume (0–1). Persists across restarts. */
   setMusicVolume(v: number): void {
     this._musicVolScale = Math.max(0, Math.min(1, v));
     if (this._musicVolNode) this._musicVolNode.gain.value = this._musicVolScale;
   }
 
-  /** Set SFX volume (0–1). Persists across restarts. */
   setSfxVolume(v: number): void {
     this._sfxVolScale = Math.max(0, Math.min(1, v));
     if (this._sfxVolNode) this._sfxVolNode.gain.value = this._sfxVolScale;
   }
 
-  /**
-   * Short resolution tone played on detonation release.
-   * The charge sweeps UP (A2→A4); this resolves DOWN to E3 (fifth below root)
-   * giving a satisfying "thunk" of tension releasing.
-   */
   playChargeRelease(chargeProgress: number): void {
     if (!this.ctx || !this._sfxBus) return;
-    const now = this.ctx.currentTime;
-
-    // Pitch tracks charge: full charge resolves from A4 (440Hz) down to G#3 (207.7Hz);
-    // low charge resolves from A3 (220Hz) down to G#3 — lands on the leading tone of
-    // A harmonic minor, creating the characteristic tension-resolution feel.
-    const startFreq = 220 + chargeProgress * 220; // 220–440 Hz
-    const endFreq   = 207.7;                       // G#3 — harmonic minor leading tone
+    const now       = this.ctx.currentTime;
+    const startFreq = 220 + chargeProgress * 220;
+    const endFreq   = 207.7; // G#3
 
     const osc = this.ctx.createOscillator();
     const env = this.ctx.createGain();
@@ -421,7 +331,7 @@ export class MusicEngine {
     osc.frequency.setValueAtTime(startFreq, now);
     osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.18);
 
-    const vol = 0.10 + chargeProgress * 0.10; // louder at full charge
+    const vol = 0.10 + chargeProgress * 0.10;
     env.gain.setValueAtTime(vol, now);
     env.gain.linearRampToValueAtTime(0, now + 0.22);
 
@@ -431,12 +341,6 @@ export class MusicEngine {
     osc.stop(now + 0.25);
   }
 
-  /**
-   * Call every frame while the player is charging.
-   * Starts a sustained sawtooth tone that sweeps A2 (110 Hz) → A4 (440 Hz)
-   * as progress goes 0 → 1.  Pass progress=0 to silence and clean up.
-   * Exponential frequency curve gives the satisfying "winding up" feel.
-   */
   updateChargeTone(progress: number): void {
     if (!this.ctx || !this._sfxBus) return;
     const now = this.ctx.currentTime;
@@ -444,8 +348,8 @@ export class MusicEngine {
     if (progress <= 0) {
       if (this._chargeToneGain) {
         this._chargeToneGain.gain.setTargetAtTime(0, now, 0.02);
-        const osc  = this._chargeToneOsc!;
-        const env  = this._chargeToneGain;
+        const osc = this._chargeToneOsc!;
+        const env = this._chargeToneGain;
         setTimeout(() => { try { osc.stop(); } catch {} env.disconnect(); }, 80);
         this._chargeToneOsc  = null;
         this._chargeToneGain = null;
@@ -453,7 +357,6 @@ export class MusicEngine {
       return;
     }
 
-    // Create oscillator on first non-zero call
     if (!this._chargeToneOsc) {
       const osc = this.ctx.createOscillator();
       const env = this.ctx.createGain();
@@ -467,36 +370,24 @@ export class MusicEngine {
       this._chargeToneGain = env;
     }
 
-    // Exponential sweep: 110 Hz (A2) at 0 → 440 Hz (A4) at 1
-    const freq = 110 * Math.pow(4, progress);   // 110 · 4^p
-    const vol  = progress * 0.015;              // silent at 0, quiet at full charge
+    const freq = 110 * Math.pow(4, progress);
+    const vol  = progress * 0.015;
     this._chargeToneOsc.frequency.setTargetAtTime(freq, now, 0.04);
     this._chargeToneGain!.gain.setTargetAtTime(vol, now, 0.04);
   }
 
-  /**
-   * Descending triangle thud on enemy kill.
-   * Debounced so a full salvo only fires one sound.
-   * Linear ramps are the most reliable envelope shape across browsers.
-   */
   playKill(): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
-
-    // Debounce: ignore if another kill sound fired within 130 ms
     if (now - this._lastKillTime < 0.13) return;
     this._lastKillTime = now;
 
     const vol = 0.22 + this._beatAccent * 0.10;
-
-    // Low triangle descend: 200 Hz → 45 Hz over 200 ms
     const osc = this.ctx.createOscillator();
     const env = this.ctx.createGain();
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(200, now);
     osc.frequency.linearRampToValueAtTime(45, now + 0.20);
-
-    // Simple linear attack + decay — guaranteed to be heard
     env.gain.setValueAtTime(0,   now);
     env.gain.linearRampToValueAtTime(vol, now + 0.015);
     env.gain.linearRampToValueAtTime(0,   now + 0.22);
@@ -507,45 +398,31 @@ export class MusicEngine {
     osc.stop(now + 0.28);
   }
 
-  /**
-   * Short descending pop for each enemy killed in a chain.
-   * Calls in rapid succession (same frame) are staggered 70 ms apart using
-   * Web Audio scheduling, so the chain sounds sequential, not all-at-once.
-   */
   playChainPop(): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
-    // New burst if more than 500 ms since the chain started
     if (now - this._chainPopBase > 0.5) {
       this._chainPopIdx  = 0;
       this._chainPopBase = now;
     }
-    const when = now + this._chainPopIdx * 0.07;  // 70 ms between each pop
-    this._chainPopIdx++;
-
-    // Crisp tick: sawtooth 300 Hz → 75 Hz (two octaves lower), near-instant attack, 25 ms total
-    const osc = this.ctx.createOscillator();
-    const env = this.ctx.createGain();
+    const when = now + this._chainPopIdx++ * 0.07;
+    const osc  = this.ctx.createOscillator();
+    const env  = this.ctx.createGain();
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(300, when);
     osc.frequency.linearRampToValueAtTime(75, when + 0.022);
     env.gain.setValueAtTime(0,    when);
-    env.gain.linearRampToValueAtTime(0.14, when + 0.001);  // snap attack
-    env.gain.linearRampToValueAtTime(0,    when + 0.025);  // fast decay
+    env.gain.linearRampToValueAtTime(0.14, when + 0.001);
+    env.gain.linearRampToValueAtTime(0,    when + 0.025);
     osc.connect(env);
     env.connect(this._sfxBus!);
     osc.start(when);
     osc.stop(when + 0.03);
   }
 
-  /**
-   * Last-bomb warning pulse — urgent descending two-tone beep (A5 → C#5).
-   * Square wave keeps it harsh and attention-grabbing.
-   */
   playLastBombWarning(): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
-    // A5 (880Hz) → G#5 (830.6Hz) — descending half-step, harmonic minor leading tone
     [880.0, 830.6].forEach((freq, i) => {
       const when = now + i * 0.06;
       const osc  = this.ctx!.createOscillator();
@@ -562,10 +439,6 @@ export class MusicEngine {
     });
   }
 
-  /**
-   * 10-second countdown tick — single crisp triangle pulse at C6 (1047 Hz).
-   * Higher and shorter than the last-bomb warning; feels like a metronome tick.
-   */
   playLowTimeWarning(): void {
     if (!this.ctx || !this._sfxBus) return;
     const now = this.ctx.currentTime;
@@ -582,14 +455,9 @@ export class MusicEngine {
     osc.stop(now + 0.10);
   }
 
-  /**
-   * Score pickup chime — two-note ascending pair (D5 → E5) in A minor pentatonic.
-   * Bright, clean sine tone that cuts through the mix.
-   */
   playPickupScore(): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
-    // D5 (587 Hz) → E5 (659 Hz) — tight bright step, 85 ms apart
     [587.3, 659.3].forEach((freq, i) => {
       const when = now + i * 0.085;
       const osc  = this.ctx!.createOscillator();
@@ -606,14 +474,9 @@ export class MusicEngine {
     });
   }
 
-  /**
-   * Time pickup tone — hollow perfect fifth (A3 → E4) in A minor pentatonic.
-   * Warm triangle pair that feels like a ticking bonus.
-   */
   playPickupTime(): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
-    // A3 (220 Hz) → E4 (330 Hz) — perfect fifth, 110 ms apart
     [220.0, 329.6].forEach((freq, i) => {
       const when = now + i * 0.11;
       const osc  = this.ctx!.createOscillator();
@@ -630,21 +493,16 @@ export class MusicEngine {
     });
   }
 
-  /**
-   * Quicken pickup arpeggio — ascending 5-note run through A minor pentatonic.
-   * A3 → C4 → E4 → G4 → A4, each note 80 ms apart, rising in volume.
-   */
   playPickupQuicken(): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
-    // A harmonic minor: A3 C4 E4 G#4 A4
     [220.0, 261.6, 329.6, 415.3, 440.0].forEach((freq, i) => {
       const when = now + i * 0.08;
       const osc  = this.ctx!.createOscillator();
       const env  = this.ctx!.createGain();
       osc.type = 'triangle';
       osc.frequency.value = freq;
-      const vol = 0.12 + i * 0.022; // crescendo as it climbs
+      const vol = 0.12 + i * 0.022;
       env.gain.setValueAtTime(0,   when);
       env.gain.linearRampToValueAtTime(vol, when + 0.007);
       env.gain.linearRampToValueAtTime(0,   when + 0.19);
@@ -655,15 +513,10 @@ export class MusicEngine {
     });
   }
 
-  /**
-   * Missile impact on-beat — big percussive BOOM.
-   * Called when a missile hits its target; sounds best when synced to beat.
-   */
   playImpact(): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
 
-    // Sub-bass kick: 90 Hz → 28 Hz over 180 ms
     const kick = this.ctx.createOscillator();
     const kEnv = this.ctx.createGain();
     kick.type = 'sine';
@@ -675,7 +528,6 @@ export class MusicEngine {
     kick.connect(kEnv); kEnv.connect(this._sfxBus!);
     kick.start(now); kick.stop(now + 0.25);
 
-    // Mid crack: short triangle 320 → 80 Hz
     const crack = this.ctx.createOscillator();
     const cEnv  = this.ctx.createGain();
     crack.type = 'triangle';
@@ -688,38 +540,23 @@ export class MusicEngine {
     crack.start(now); crack.stop(now + 0.15);
   }
 
-  // ── Section frequency table ─────────────────────────────────────────────────
-  // Maps beat index → base filter frequency (Hz), matching WaveSchedule sections.
-  // Values chosen to mirror the preset table from music-engine.js:
-  //   intro ≈ tubby/basic (closed), full ≈ synthwave (wide), climax = maximum.
-
   private _sectionBaseFreq(beat: number): number {
-    if (beat <  16) return 1050;   // Intro       — tight, mysterious
-    if (beat <  32) return 1400;   // Build A #1  — bass enters, opening up
-    if (beat <  48) return 1900;   // Build A #2  — paired sweeps
-    if (beat <  64) return 2600;   // Build B #1  — radial clusters emerge
-    if (beat <  80) return 3200;   // Build B #2  — density increases
-    if (beat <  96) return 4500;   // Full #1     — all layers, arcs, wide open
-    if (beat < 112) return 4200;   // Full #2     — linear rows
-    if (beat < 144) return  750;   // Break       — drums drop, closed down
-    if (beat < 160) return 4500;   // Section 2   — full return, wide again
-    if (beat < 224) return 1800;   // Long Break  — moderate, paired threats
-    return 5800;                   // Climax      — maximum brightness
+    if (beat <  16) return 1050;
+    if (beat <  32) return 1400;
+    if (beat <  48) return 1900;
+    if (beat <  64) return 2600;
+    if (beat <  80) return 3200;
+    if (beat <  96) return 4500;
+    if (beat < 112) return 4200;
+    if (beat < 144) return  750;
+    if (beat < 160) return 4500;
+    if (beat < 224) return 1800;
+    return 5800;
   }
-
-  // ── Signal chain ────────────────────────────────────────────────────────────
 
   private _buildChain(): void {
     const ctx = this.ctx!;
 
-    // ── Output ───────────────────────────────────────────────────────────────
-    // Glue compressor: catches peaks from both MIDI voices and SFX together,
-    // giving the whole mix a unified punchy character.
-    //   threshold −18 dBFS: catches musical peaks without killing dynamics
-    //   ratio 5:1: noticeable squeeze without squashing all life out
-    //   knee 6 dB: soft onset — transparent on quieter notes
-    //   attack 8ms: lets the initial hit of SFX transients through (= punch)
-    //   release 100ms: fast enough to recover between beats without pumping
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -18;
     comp.ratio.value     =  5;
@@ -735,8 +572,6 @@ export class MusicEngine {
     this.masterGain.connect(this._musicVolNode);
     this._musicVolNode.connect(comp);
 
-    // SFX bus: bypasses masterGain so MIDI volume changes don't affect SFX.
-    // Goes straight to the glue compressor so the whole mix still gets glued.
     this._sfxBus = ctx.createGain();
     this._sfxBus.gain.value = 0.85;
     this._sfxVolNode = ctx.createGain();
@@ -744,39 +579,31 @@ export class MusicEngine {
     this._sfxBus.connect(this._sfxVolNode);
     this._sfxVolNode.connect(comp);
 
-    // ── Feedback delay (8n. ≈ 220ms @ 136 bpm — synthwave preset) ───────────
     const delay    = ctx.createDelay(1.0);
     delay.delayTime.value = 0.22;
     const feedback = ctx.createGain(); feedback.gain.value = 0.38;
     const delWet   = ctx.createGain(); delWet.gain.value   = 0.28;
-    this._feedbackGain = feedback;   // store so update() can modulate it
+    this._feedbackGain = feedback;
     delay.connect(feedback);
-    feedback.connect(delay);     // feedback loop
+    feedback.connect(delay);
     delay.connect(delWet);
     delWet.connect(this.masterGain);
 
-    // ── mfilt — primary modulation point ────────────────────────────────────
-    // Equivalent to music-engine.js:
-    //   mfilt = new Tone.Filter({ frequency:1200, type:'lowpass', rolloff:-24 })
     this.mfilt = ctx.createBiquadFilter();
-    this.mfilt.type           = 'lowpass';
+    this.mfilt.type            = 'lowpass';
     this.mfilt.frequency.value = 1200;
     this.mfilt.Q.value         = 0.8;
+    this.mfilt.connect(this.masterGain);
+    this.mfilt.connect(delay);
 
-    this.mfilt.connect(this.masterGain); // dry path
-    this.mfilt.connect(delay);           // wet path → feedback delay
-
-    // ── Voice pool ───────────────────────────────────────────────────────────
-    // 12 sawtooth oscillators with individual gain envelopes (ADSR).
-    // All route through a shared mix bus into mfilt.
     const voiceBus = ctx.createGain();
-    voiceBus.gain.value = 0.75 / VOICE_COUNT; // normalise per-voice contribution
+    voiceBus.gain.value = 0.75 / VOICE_COUNT;
     voiceBus.connect(this.mfilt);
 
     this.voices = [];
     for (let i = 0; i < VOICE_COUNT; i++) {
       const osc = ctx.createOscillator();
-      osc.type = 'sawtooth'; // synthwave preset oscillator type
+      osc.type = 'sawtooth';
       const env = ctx.createGain();
       env.gain.value = 0;
       osc.connect(env);
@@ -785,8 +612,6 @@ export class MusicEngine {
       this.voices.push({ osc, env, startTime: 0, active: false });
     }
   }
-
-  // ── Note scheduling loop ─────────────────────────────────────────────────
 
   private _tick = (): void => {
     if (!this._playing) return;

@@ -1,8 +1,3 @@
-// ─── Game (Every Extend Extra: Any Additional Advantage Edition) ─────────────
-// Player detonates their ship to chain-kill enemies.
-// The space tunnel + wireframe ships remain; the shooting is replaced with
-// the EEE mechanic: hold to charge, release to explode, earn chain bonuses.
-
 import * as THREE from 'three';
 import { EffectComposer }   from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass }        from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -1558,8 +1553,6 @@ export class Game {
     this._gameOverLetters = letters;
   }
 
-  /** Compute visible world-space bounds at ARENA.GAME_Z by tracing screen edges to the game plane.
-   *  Called after camera setup and on resize so mobile's far-back camera (Z=520) gets correct limits. */
   private _computeBounds(): void {
     const camPos = this.camera.position;
     const MARGIN = 0.90; // 90% of visible area — slight inset so player doesn't go fully to edge

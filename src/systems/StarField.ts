@@ -73,10 +73,6 @@ export class StarField {
     this.mesh = new THREE.Points(geo, mat);
   }
 
-  /**
-   * Call every frame.  Stars drift +Z at rail speed (wrapping) and their
-   * colour is scaled by how close they are — dark far ahead, bright nearby.
-   */
   scroll(playerZ: number, dt: number): void {
     const speed     = RAIL.SPEED;
     const fadeRange = FADE_END_Z - FADE_START_Z; // positive
