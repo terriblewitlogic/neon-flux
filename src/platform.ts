@@ -44,7 +44,7 @@ export function setLocalPlayerName(name: string): string {
     .replace(/[^\w .'-]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 18) || 'Player';
+    .slice(0, 21) || 'Player';
   try { localStorage.setItem(LOCAL_PLAYER_NAME_KEY, cleaned); } catch (_) {}
   return cleaned;
 }

@@ -43,7 +43,7 @@ function sanitizeName(value) {
     .replace(/[^\w .'-]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 18);
+    .slice(0, 21);
   const name    = cleaned || 'Player';
   const compact = name.toLowerCase().replace(/[^a-z0-9]/g, '');
   return BAD_WORDS.some(w => compact.includes(w)) ? 'Player' : name;

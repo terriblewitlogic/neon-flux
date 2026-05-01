@@ -851,7 +851,7 @@ export class HUD {
         </label>
       </div>
       <div class="set-divider"></div>
-      <div class="set-cloud-row"><span class="set-cloud-label">NAME</span><input id="set-name" maxlength="18" autocomplete="off" spellcheck="false"><button id="set-name-save">SAVE</button></div>
+      <div class="set-cloud-row"><span class="set-cloud-label">NAME</span><input id="set-name" maxlength="21" autocomplete="off" spellcheck="false"><button id="set-name-save">SAVE</button></div>
       <div class="set-cloud-row"><span class="set-cloud-label">CODE</span><span class="set-recovery-code" id="set-rc">…</span><button id="set-copy-rc">COPY</button></div>
       <div class="set-cloud-row"><span class="set-cloud-label">RECOVER</span><input id="set-recover-input" autocomplete="off" spellcheck="false" placeholder="PASTE CODE"><button id="set-load-rc">LOAD</button></div>
       <div class="set-cloud-status" id="set-cloud-status"></div>
