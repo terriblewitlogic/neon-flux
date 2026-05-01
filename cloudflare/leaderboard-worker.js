@@ -171,7 +171,12 @@ async function submitScore(request, env) {
     : requestedScore;
   const suspicious = Number(saveRow?.suspicious || 0);
 
-  if (trustedScore <= 0) return json(request, { error: 'save not validated yet' }, 409);
+  if (trustedScore <= 0) {
+    // Score can't be accepted yet, but still update the name on any existing record
+    await env.DB.prepare('UPDATE scores SET name = ?1 WHERE player_id = ?2')
+      .bind(sanitizeName(payload.name), playerId).run();
+    return json(request, { error: 'save not validated yet' }, 409);
+  }
 
   await upsertScore(env.DB, playerId, sanitizeName(payload.name), trustedScore, Date.now(), suspicious);
 
