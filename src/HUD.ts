@@ -1,3 +1,5 @@
+declare const __APP_VERSION__: string;
+
 import { EEE } from './config';
 import { NeonFluxLogo } from './NeonFluxLogo';
 import { GameOverLogo } from './GameOverLogo';
@@ -853,6 +855,7 @@ export class HUD {
       <div class="set-cloud-row"><span class="set-cloud-label">CODE</span><span class="set-recovery-code" id="set-rc">…</span><button id="set-copy-rc">COPY</button></div>
       <div class="set-cloud-row"><span class="set-cloud-label">RECOVER</span><input id="set-recover-input" autocomplete="off" spellcheck="false" placeholder="PASTE CODE"><button id="set-load-rc">LOAD</button></div>
       <div class="set-cloud-status" id="set-cloud-status"></div>
+      <div class="set-version">v${__APP_VERSION__}</div>
     `;
     app.appendChild(panel);
 

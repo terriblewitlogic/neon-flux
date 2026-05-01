@@ -981,6 +981,13 @@ canvas {
   margin-top: 4px;
   text-align: center;
 }
+.set-version {
+  font-size: 9px;
+  color: #00ffcc33;
+  letter-spacing: 0.1em;
+  text-align: right;
+  margin-top: 8px;
+}
 
 /* ── PC controls hint ─────────────────────────────────────────────────────── */
 
