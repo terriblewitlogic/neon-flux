@@ -1,6 +1,5 @@
 import './style.css';
 import { Game } from './Game';
-import { NeonFluxLogo } from './NeonFluxLogo';
 import {
   getLocalPlayerName,
   setLocalPlayerName,
@@ -8,52 +7,6 @@ import {
   recoverSave,
 } from './platform';
 
-function startSplashHero(): () => void {
-  const wormhole = document.getElementById('ss-wormhole') as HTMLCanvasElement;
-  const logoEl   = document.getElementById('ss-logo')!;
-
-  // ── Wormhole canvas ──────────────────────────────────────────────────────
-  const hero = wormhole.parentElement!;
-  wormhole.width  = hero.clientWidth  || 340;
-  wormhole.height = hero.clientHeight || 191;
-  const ctx = wormhole.getContext('2d')!;
-  const NUM_RINGS = 14;
-  let t = 0;
-  let wraf = 0;
-
-  const drawWormhole = () => {
-    const w = wormhole.width, h = wormhole.height;
-    const cx = w / 2, cy = h / 2;
-    ctx.fillStyle = 'rgba(2, 0, 12, 0.18)';
-    ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < NUM_RINGS; i++) {
-      const phase = ((t * 0.45 + i / NUM_RINGS) % 1);
-      const r     = phase * Math.max(cx, cy) * 1.55;
-      const hue   = (t * 55 + i * 26) % 360;
-      const alpha = (1 - phase) * 0.85;
-      ctx.strokeStyle = `hsla(${hue},100%,62%,${alpha})`;
-      ctx.lineWidth   = 1.2 + (1 - phase) * 1.2;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, r, r * 0.42, 0, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    t += 0.016;
-    wraf = requestAnimationFrame(drawWormhole);
-  };
-  wraf = requestAnimationFrame(drawWormhole);
-
-  // ── Logo ─────────────────────────────────────────────────────────────────
-  const logo = new NeonFluxLogo('both');
-  logo.resize(wormhole.width, Math.round(wormhole.width / 2.8));
-  logoEl.appendChild(logo.canvas);
-  logo.start();
-
-  return () => {
-    cancelAnimationFrame(wraf);
-    logo.stop();
-    logo.dispose();
-  };
-}
 
 const ADJS = [
   'ANCIENT','BINARY','BURNING','COLD','COSMIC','CRIMSON','DARK','DEAD',
@@ -82,7 +35,6 @@ function randomName(): string {
 getRecoveryCode();
 
 async function runSplash(): Promise<void> {
-  const stopHero  = startSplashHero();
   const screen       = document.getElementById('startScreen')!;
   const nameInput    = document.getElementById('startNameInput')    as HTMLInputElement;
   const recoveryInput = document.getElementById('startRecoveryInput') as HTMLInputElement;
@@ -132,7 +84,6 @@ async function runSplash(): Promise<void> {
       }
 
       screen.classList.add('done');
-      stopHero();
       resolve();
     };
 
@@ -145,8 +96,14 @@ async function runSplash(): Promise<void> {
 
 async function bootstrap(): Promise<void> {
   try {
-    const qs = new URLSearchParams(window.location.search);
+    const container = document.getElementById('app');
+    if (!container) throw new Error('No #app container found');
 
+    // Start the game immediately so the tunnel runs behind the splash
+    const game = new Game(container);
+    game.start();
+
+    const qs = new URLSearchParams(window.location.search);
     if (qs.get('portal') === 'true' || qs.get('portal') === '1') {
       // Arrived via portal — skip splash, use URL username if provided
       const urlName = (qs.get('username') ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -155,12 +112,6 @@ async function bootstrap(): Promise<void> {
     } else {
       await runSplash();
     }
-
-    const container = document.getElementById('app');
-    if (!container) throw new Error('No #app container found');
-
-    const game = new Game(container);
-    game.start();
   } catch (err) {
     console.error('[NeonFlux] Boot error', err);
   }
