@@ -57,14 +57,24 @@ function _shapesA(): THREE.Shape[] {
 
 // ─── M ───────────────────────────────────────────────────────────────────────
 function _shapesM(): THREE.Shape[] {
-  const x0 = 0, x1 = LW, b = 0, t = LH, d = BARW, s = 1.0;
+  const x0 = 0, x1 = LW, b = 0, t = LH;
+  const mid   = LW / 2;
+  const cutH  = t * 0.42;
+  const lApex = (x0 + BARW + mid) / 2;
+  const rApex = (mid + x1 - BARW) / 2;
   return [_shape([
-    [x0, b], [x0, t], [d + s, t],
-    [x1 / 2, t - LH * 0.4],
-    [x1 - d - s, t], [x1, t], [x1, b],
-    [x1 - d, b],
-    [x1 / 2, t - LH * 0.4 - BARH * 1.2],
-    [d, b],
+    [x0,        b],
+    [x0,        t],
+    [x0 + BARW, t],
+    [mid,       t * 0.5],
+    [x1 - BARW, t],
+    [x1,        t],
+    [x1,        b],
+    [x1 - BARW, b],
+    [rApex,     cutH],
+    [mid,       b],
+    [lApex,     cutH],
+    [x0 + BARW, b],
   ])];
 }
 
