@@ -37,6 +37,8 @@ const ChromaticAberrationShader = {
 };
 
 import { CAMERA, ARENA, EEE, VISUAL } from './config';
+
+const R_PORTAL_TRIGGER = 13; // world units — player must be this close to enter a portal
 import { StarField }          from './systems/StarField';
 import { ParticleSystem }     from './systems/ParticleSystem';
 import { VisualEffects }      from './systems/VisualEffects';
@@ -169,6 +171,13 @@ export class Game {
 
   // Pause
   private _isPaused = false;
+
+  // Portals
+  private _exitPortal:   THREE.Group | null = null;
+  private _startPortal:  THREE.Group | null = null;
+  private _portalMats:   THREE.MeshBasicMaterial[] = [];
+  private _portalHue     = 0;
+  private _portalTrig    = false;
 
   // Analytics
   private _firstChain          = false;
@@ -433,6 +442,7 @@ export class Game {
       return;
     }
     this.hud.showForGame();
+    this._portalTrig   = false;
     this.phase         = 'playing';
     this.score         = 0;
     this.timeRemaining = EEE.START_TIME;
@@ -524,7 +534,7 @@ export class Game {
     const dt = Math.min((now - this._last) / 1000, 0.05);
     this._last = now;
     this._update(dt);
-    (window as any).animateVibeJamPortals?.();
+    this._tickPortals(dt);
     this.composer.render();
     // Render bullets on top of all post-processing (bloom, afterimage, CA).
     // Clear depth first so bullets aren't occluded by stale depth data from the passes.
@@ -1589,14 +1599,92 @@ export class Game {
   }
 
   private _initPortals(): void {
-    const init = (window as any).initVibeJamPortals;
-    if (typeof init !== 'function') return;
-    init({
-      scene:        this.scene,
-      getPlayer:    () => this._playerGroup,
-      spawnPoint:   { x:  105, y: -78, z: ARENA.GAME_Z },
-      exitPosition: { x: -105, y: -78, z: ARENA.GAME_Z },
-      exitLabel:    'VIBE JAM PORTAL',
-    });
+    // Exit portal — upper-left, under where the score HUD sits in world space
+    this._exitPortal = this._makePortal(-108, 72);
+    this.scene.add(this._exitPortal);
+
+    // Start portal — only when player arrived via webring with a ref to go back to
+    const qs = new URLSearchParams(window.location.search);
+    if ((qs.get('portal') === 'true' || qs.get('portal') === '1') && qs.get('ref')) {
+      this._startPortal = this._makePortal(108, 72);
+      this.scene.add(this._startPortal);
+    }
+  }
+
+  private _makePortal(x: number, y: number): THREE.Group {
+    const R   = 10;
+    const group = new THREE.Group();
+    group.position.set(x, y, ARENA.GAME_Z + 1);
+
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.95 });
+    const discMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.22, side: THREE.DoubleSide });
+    this._portalMats.push(ringMat, discMat);
+
+    group.add(new THREE.Mesh(new THREE.TorusGeometry(R, 1.3, 16, 64), ringMat));
+    group.add(new THREE.Mesh(new THREE.CircleGeometry(R - 0.3, 48), discMat));
+
+    // "PORTAL" text baked into a canvas texture, rendered inside the disc
+    const cv  = document.createElement('canvas');
+    cv.width  = 256; cv.height = 64;
+    const ctx = cv.getContext('2d')!;
+    ctx.font         = 'bold 26px "Courier New", monospace';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle    = '#ffffff';
+    ctx.fillText('PORTAL', 128, 32);
+    const textMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(R * 1.55, R * 0.38),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, side: THREE.DoubleSide }),
+    );
+    group.add(textMesh);
+
+    return group;
+  }
+
+  private _tickPortals(dt: number): void {
+    if (!this._exitPortal) return;
+
+    // Show only during active gameplay
+    const active = this.phase === 'playing' || this.phase === 'dying' || this.phase === 'tutorial';
+    this._exitPortal.visible = active;
+    if (this._startPortal) this._startPortal.visible = active;
+
+    // Cycle hue across all ring + disc materials
+    this._portalHue = (this._portalHue + dt * 80) % 360;
+    const col = new THREE.Color().setHSL(this._portalHue / 360, 1.0, 0.55);
+    for (const mat of this._portalMats) mat.color = col;
+
+    // Spin the rings slowly
+    this._exitPortal.rotation.z += dt * 0.4;
+    if (this._startPortal) this._startPortal.rotation.z -= dt * 0.4;
+
+    if (!active || this._portalTrig) return;
+
+    // Proximity trigger — exit portal sends player into the webring
+    const ex = Math.hypot(this._px - this._exitPortal.position.x, this._py - this._exitPortal.position.y);
+    if (ex < R_PORTAL_TRIGGER) {
+      this._portalTrig = true;
+      const params = new URLSearchParams(window.location.search);
+      params.set('portal',   'true');
+      params.set('ref',      window.location.hostname);
+      params.set('username', getLocalPlayerName());
+      params.set('color',    '00ffcc');
+      window.location.href = 'https://vibej.am/portal/2026?' + params.toString();
+      return;
+    }
+
+    // Start portal sends player back to the game they came from
+    if (this._startPortal) {
+      const sx = Math.hypot(this._px - this._startPortal.position.x, this._py - this._startPortal.position.y);
+      if (sx < R_PORTAL_TRIGGER) {
+        this._portalTrig = true;
+        const qs  = new URLSearchParams(window.location.search);
+        const ref = qs.get('ref') ?? '';
+        let url   = /^https?:\/\//i.test(ref) ? ref : 'https://' + ref;
+        qs.delete('ref');
+        const s = qs.toString();
+        window.location.href = url + (s ? '?' + s : '');
+      }
+    }
   }
 }
