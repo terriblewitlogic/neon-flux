@@ -173,13 +173,14 @@ export class Game {
   private _isPaused = false;
 
   // Portals
-  private _exitPortal:   THREE.Group | null = null;
-  private _startPortal:  THREE.Group | null = null;
-  private _portalMats:   Array<THREE.MeshBasicMaterial | THREE.PointsMaterial> = [];
-  private _portalPBufs:  Array<{ init: Float32Array; attr: THREE.BufferAttribute }> = [];
-  private _portalHue          = 0;
-  private _portalTrig         = false;
-  private _startPortalActive  = false;
+  private _exitPortal:      THREE.Group | null = null;
+  private _startPortal:     THREE.Group | null = null;
+  private _portalMats:      Array<THREE.MeshBasicMaterial | THREE.PointsMaterial> = [];
+  private _portalDiscMats:  THREE.MeshBasicMaterial[] = [];
+  private _portalPBufs:     Array<{ init: Float32Array; attr: THREE.BufferAttribute }> = [];
+  private _portalHue           = 0;
+  private _portalTrig          = false;
+  private _startPortalActive   = false;
 
   // Analytics
   private _firstChain          = false;
@@ -1601,7 +1602,9 @@ export class Game {
   }
 
   private _initPortals(): void {
-    this._exitPortal = this._makePortal(-122, 93);
+    const px = this._halfW * 0.94;
+    const py = this._halfH * 0.97;
+    this._exitPortal = this._makePortal(-px, py);
     this.scene.add(this._exitPortal);
 
     // Preload exit-portal destination so the redirect feels instant
@@ -1612,7 +1615,7 @@ export class Game {
 
     const qs = new URLSearchParams(window.location.search);
     if ((qs.get('portal') === 'true' || qs.get('portal') === '1') && qs.get('ref')) {
-      this._startPortal = this._makePortal(122, 93);
+      this._startPortal = this._makePortal(px, py);
       this.scene.add(this._startPortal);
       // 5-second grace period so players don't accidentally teleport back
       setTimeout(() => { this._startPortalActive = true; }, 5000);
@@ -1628,6 +1631,7 @@ export class Game {
     const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.95 });
     const discMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.22, side: THREE.DoubleSide });
     this._portalMats.push(ringMat, discMat);
+    this._portalDiscMats.push(discMat);
 
     group.add(new THREE.Mesh(new THREE.TorusGeometry(R, 1.3, 16, 64), ringMat));
     group.add(new THREE.Mesh(new THREE.CircleGeometry(R - 0.3, 48), discMat));
@@ -1693,11 +1697,16 @@ export class Game {
       attr.needsUpdate = true;
     }
 
-    if (!active || this._portalTrig) return;
+    // Dim portal disc when player has no bombs (can't afford entry)
+    const canAfford = this.bombs > 0;
+    for (const dm of this._portalDiscMats) dm.opacity = canAfford ? 0.22 : 0.06;
+
+    if (!active || this._portalTrig || !canAfford) return;
 
     const ex = Math.hypot(this._px - this._exitPortal.position.x, this._py - this._exitPortal.position.y);
     if (ex < R_PORTAL_TRIGGER) {
       this._portalTrig = true;
+      this.bombs--;
       const params = new URLSearchParams(window.location.search);
       params.set('portal',   'true');
       params.set('ref',      window.location.hostname);
@@ -1711,6 +1720,7 @@ export class Game {
       const sx = Math.hypot(this._px - this._startPortal.position.x, this._py - this._startPortal.position.y);
       if (sx < R_PORTAL_TRIGGER) {
         this._portalTrig = true;
+        this.bombs--;
         const qs  = new URLSearchParams(window.location.search);
         const ref = qs.get('ref') ?? '';
         const url = /^https?:\/\//i.test(ref) ? ref : 'https://' + ref;
