@@ -27,7 +27,7 @@ const NOUNS = [
 function randomName(): string {
   const adj  = ADJS[Math.floor(Math.random() * ADJS.length)];
   const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  return `${adj}${noun}`;
+  return `${adj} ${noun}`;
 }
 
 // Ensure recovery code is generated on first visit
@@ -46,7 +46,7 @@ async function runSplash(): Promise<void> {
   startBtn.disabled = !nameInput.value.trim();
 
   nameInput.addEventListener('input', () => {
-    const clean = nameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const clean = nameInput.value.toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/  +/g, ' ');
     if (nameInput.value !== clean) {
       const pos = nameInput.selectionStart ?? clean.length;
       nameInput.value = clean;
@@ -57,7 +57,7 @@ async function runSplash(): Promise<void> {
 
   return new Promise(resolve => {
     const go = async () => {
-      const name = nameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const name = nameInput.value.toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/  +/g, ' ').trim();
       const code = recoveryInput.value.trim();
       if (!name) return;
 
