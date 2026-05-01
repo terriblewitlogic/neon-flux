@@ -56,29 +56,15 @@ function _shapesA(): THREE.Shape[] {
 }
 
 // ─── M ───────────────────────────────────────────────────────────────────────
-// Single outer polygon with triangular notches zig-zagged into the bottom
-// edge — no holes, so no closing line appears at the base of each cut.
 function _shapesM(): THREE.Shape[] {
-  const x0 = 0, x1 = LW, b = 0, t = LH;
-  const mid   = LW / 2;
-  const cutH  = t * 0.42;
-  const lApex = (x0 + BARW + mid) / 2; // left-cut apex x
-  const rApex = (mid + x1 - BARW) / 2; // right-cut apex x
-
-  // Trace the full outline including zig-zag notches so no inner edges appear.
+  const x0 = 0, x1 = LW, b = 0, t = LH, d = BARW, s = 1.0;
   return [_shape([
-    [x0,        b],
-    [x0,        t],
-    [x0 + BARW, t],
-    [mid,       t * 0.5],
-    [x1 - BARW, t],
-    [x1,        t],
-    [x1,        b],
-    [x1 - BARW, b],       // right foot outer
-    [rApex,     cutH],    // right cut apex (up-left)
-    [mid,       b],       // centre notch bottom
-    [lApex,     cutH],    // left cut apex (up-left)
-    [x0 + BARW, b],       // left foot inner
+    [x0, b], [x0, t], [d + s, t],
+    [x1 / 2, t - LH * 0.4],
+    [x1 - d - s, t], [x1, t], [x1, b], [x1 - d, b],
+    [x1 - d, t - BARH * 1.2],
+    [x1 / 2, t - LH * 0.4 - BARH * 1.2],
+    [d, t - BARH * 1.2], [d, b],
   ])];
 }
 
@@ -136,38 +122,24 @@ function _shapesV(): THREE.Shape[] {
 
 // ─── R ───────────────────────────────────────────────────────────────────────
 function _shapesR(): THREE.Shape[] {
-  const x0 = 0, x1 = LW, b = 0, t = LH;
-  const bowlBot = LH * 0.5; // where bowl ends / leg begins
-
-  // Outer R silhouette
+  const x0 = 0, x1 = LW, b = 0, t = LH, m = LH * 0.45;
   const outer = _shape([
-    [x0, b],
-    [x0, t],
-    [x1 - CH, t],
-    [x1, t - CH],
-    [x1, bowlBot + CH],
-    [x1 - CH, bowlBot],
-    [x1, bowlBot - CH],          // bump outward for leg root
-    [x1, b + BARH],
-    [x1 - BARW, b],              // leg diagonal
-    [x1 - BARW, bowlBot],
-    [x0 + BARW, bowlBot],
-    [x0 + BARW, b],
+    [x0, b], [x0, t],
+    [x1 - CH, t], [x1, t - CH],
+    [x1, m + CH], [x1 - CH, m],
+    [x1, b], [x1 - BARW, b],
+    [x1 - BARW - BARW * 0.5, m],
+    [x0 + BARW, m], [x0 + BARW, b],
   ]);
-
-  // Bowl hollow
   const hole = new THREE.Path();
-  const hp: [number, number][] = [
-    [x0 + BARW, t - BARH],
-    [x1 - BARW * 1.2, t - BARH],
-    [x1 - BARW, bowlBot + BARH],
-    [x0 + BARW, bowlBot + BARH],
-  ];
-  hole.moveTo(hp[0][0], hp[0][1]);
-  for (let i = 1; i < hp.length; i++) hole.lineTo(hp[i][0], hp[i][1]);
+  hole.moveTo(x0 + BARW, t - BARH);
+  hole.lineTo(x1 - BARW - CH * 0.5, t - BARH);
+  hole.lineTo(x1 - BARW, t - BARH - CH * 0.5);
+  hole.lineTo(x1 - BARW, m + BARH + CH * 0.5);
+  hole.lineTo(x1 - BARW - CH * 0.5, m + BARH);
+  hole.lineTo(x0 + BARW, m + BARH);
   hole.closePath();
   outer.holes.push(hole);
-
   return [outer];
 }
 
