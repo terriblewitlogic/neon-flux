@@ -7,6 +7,29 @@ import {
   recoverSave,
 } from './platform';
 
+const ADJS = [
+  'ANCIENT','BINARY','BURNING','COLD','COSMIC','CRIMSON','DARK','DEAD',
+  'DISTANT','DRIFTING','DYING','ELECTRIC','FALLEN','FROZEN','GHOST',
+  'GLOWING','HOLLOW','INFINITE','IRON','LAST','LOST','MOLTEN','NEBULA',
+  'NEON','NULL','PHANTOM','QUANTUM','ROGUE','SHATTERED','SILENT',
+  'SOLAR','STELLAR','STRANGE','SUPER','TOXIC','ULTRA','VOID','WANDERING',
+  'WARPED','WILD','ZERO',
+];
+const NOUNS = [
+  'ANDROID','ASTEROID','BEACON','BINARY','CLONE','CLUSTER','COMET',
+  'CONSTRUCT','COSMOS','CYBORG','DRONE','DWARF','ECHO','ENTITY','FLUX',
+  'GIANT','HORIZON','HUNTER','ION','LASER','MATTER','MATRIX','MOON',
+  'NEBULA','NODE','NOVA','ORBIT','PHOTON','PILOT','PROBE','PULSAR',
+  'QUASAR','REACTOR','RELAY','RIFT','SENTINEL','SIGNAL','SINGULARITY',
+  'SPECTER','STAR','STORM','SYSTEM','TITAN','VECTOR','VOID','WARP',
+];
+
+function randomName(): string {
+  const adj  = ADJS[Math.floor(Math.random() * ADJS.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  return `${adj}${noun}`;
+}
+
 // Ensure recovery code is generated on first visit
 getRecoveryCode();
 
@@ -17,8 +40,9 @@ async function runSplash(): Promise<void> {
   const startBtn     = document.getElementById('startBtn')           as HTMLButtonElement;
   const hint         = document.getElementById('startHint')!;
 
-  // Pre-fill saved name
-  nameInput.value = getLocalPlayerName();
+  // Pre-fill saved name, or generate a random one for first-time visitors
+  const hasSaved = !!localStorage.getItem('neon-flux_player_name_v1');
+  nameInput.value = hasSaved ? getLocalPlayerName() : randomName();
   startBtn.disabled = !nameInput.value.trim();
 
   nameInput.addEventListener('input', () => {
