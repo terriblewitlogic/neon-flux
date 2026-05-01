@@ -61,10 +61,10 @@ function _shapesM(): THREE.Shape[] {
   return [_shape([
     [x0, b], [x0, t], [d + s, t],
     [x1 / 2, t - LH * 0.4],
-    [x1 - d - s, t], [x1, t], [x1, b], [x1 - d, b],
-    [x1 - d, t - BARH * 1.2],
+    [x1 - d - s, t], [x1, t], [x1, b],
+    [x1 - d, b],
     [x1 / 2, t - LH * 0.4 - BARH * 1.2],
-    [d, t - BARH * 1.2], [d, b],
+    [d, b],
   ])];
 }
 
