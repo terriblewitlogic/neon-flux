@@ -1601,7 +1601,7 @@ export class Game {
   }
 
   private _initPortals(): void {
-    this._exitPortal = this._makePortal(-108, 72);
+    this._exitPortal = this._makePortal(-108, 88);
     this.scene.add(this._exitPortal);
 
     // Preload exit-portal destination so the redirect feels instant
@@ -1612,7 +1612,7 @@ export class Game {
 
     const qs = new URLSearchParams(window.location.search);
     if ((qs.get('portal') === 'true' || qs.get('portal') === '1') && qs.get('ref')) {
-      this._startPortal = this._makePortal(108, 72);
+      this._startPortal = this._makePortal(108, 88);
       this.scene.add(this._startPortal);
       // 5-second grace period so players don't accidentally teleport back
       setTimeout(() => { this._startPortalActive = true; }, 5000);
