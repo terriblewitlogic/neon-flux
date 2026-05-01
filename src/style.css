@@ -53,6 +53,27 @@ canvas {
   letter-spacing: 4px;
 }
 
+/* Portal — under the score, rainbow cycling */
+@keyframes portal-rainbow {
+  0%   { color: #ff4444; text-shadow: 0 0 8px #ff4444; }
+  17%  { color: #ff9900; text-shadow: 0 0 8px #ff9900; }
+  33%  { color: #ffee00; text-shadow: 0 0 8px #ffee00; }
+  50%  { color: #00ff88; text-shadow: 0 0 8px #00ff88; }
+  67%  { color: #00ccff; text-shadow: 0 0 8px #00ccff; }
+  83%  { color: #cc44ff; text-shadow: 0 0 8px #cc44ff; }
+  100% { color: #ff4444; text-shadow: 0 0 8px #ff4444; }
+}
+#hud-portal {
+  position: absolute;
+  top: calc(max(env(safe-area-inset-top), 12px) + clamp(15px, 3.8vw, 22px) + 10px);
+  left: 18px;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-decoration: none;
+  cursor: pointer;
+  animation: portal-rainbow 2.4s linear infinite;
+}
+
 /* Timer — top-center (large, prominent) */
 #hud-timer {
   position: absolute;

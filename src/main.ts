@@ -71,7 +71,16 @@ async function runSplash(): Promise<void> {
 
 async function bootstrap(): Promise<void> {
   try {
-    await runSplash();
+    const qs = new URLSearchParams(window.location.search);
+
+    if (qs.get('portal') === 'true' || qs.get('portal') === '1') {
+      // Arrived via portal — skip splash, use URL username if provided
+      const urlName = (qs.get('username') ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (urlName) setLocalPlayerName(urlName);
+      document.getElementById('startScreen')!.classList.add('done');
+    } else {
+      await runSplash();
+    }
 
     const container = document.getElementById('app');
     if (!container) throw new Error('No #app container found');

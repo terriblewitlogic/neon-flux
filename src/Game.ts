@@ -210,6 +210,8 @@ export class Game {
   // ── Constructor ─────────────────────────────────────────────────────────────
 
   constructor(container: HTMLElement) {
+    (window as any).THREE = THREE; // required by vibej.am/2026/portal/sample.js
+
     // Renderer — mobile uses lower pixel ratio and skips antialias (high DPI hides it)
     this.renderer = new THREE.WebGLRenderer({ antialias: !this._isMobile });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this._isMobile ? 1.0 : 2.0));
@@ -400,6 +402,7 @@ export class Game {
       }
     });
     this._loadPersonalBest();
+    this._initPortals();
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────────
@@ -521,6 +524,7 @@ export class Game {
     const dt = Math.min((now - this._last) / 1000, 0.05);
     this._last = now;
     this._update(dt);
+    (window as any).animateVibeJamPortals?.();
     this.composer.render();
     // Render bullets on top of all post-processing (bloom, afterimage, CA).
     // Clear depth first so bullets aren't occluded by stale depth data from the passes.
@@ -1582,5 +1586,17 @@ export class Game {
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);
     this.bloomPass.resolution.set(w, h);
+  }
+
+  private _initPortals(): void {
+    const init = (window as any).initVibeJamPortals;
+    if (typeof init !== 'function') return;
+    init({
+      scene:        this.scene,
+      getPlayer:    () => this._playerGroup,
+      spawnPoint:   { x:  105, y: -78, z: ARENA.GAME_Z },
+      exitPosition: { x: -105, y: -78, z: ARENA.GAME_Z },
+      exitLabel:    'VIBE JAM PORTAL',
+    });
   }
 }

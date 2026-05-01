@@ -121,6 +121,21 @@ export class HUD {
     this.elMessage.appendChild(this._msgVisSpan);
     this.elMessage.appendChild(this._msgHidSpan);
 
+    const elPortal = this._el('a', { id: 'hud-portal', textContent: 'PORTAL' });
+    (elPortal as HTMLAnchorElement).href        = '#';
+    (elPortal as HTMLAnchorElement).rel         = 'noopener noreferrer';
+    (elPortal as HTMLAnchorElement).style.pointerEvents = 'auto';
+    elPortal.addEventListener('click', e => {
+      e.preventDefault();
+      const params = new URLSearchParams(window.location.search);
+      params.set('portal',   'true');
+      params.set('ref',      window.location.hostname);
+      params.set('username', getLocalPlayerName());
+      params.set('color',    '00ffcc');
+      window.location.href = 'https://vibej.am/portal/2026?' + params.toString();
+    });
+    hud.appendChild(elPortal);
+
     hud.appendChild(this.elScore);
     hud.appendChild(this.elTimer);
     hud.appendChild(this.elBombs);
